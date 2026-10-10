@@ -1,10 +1,12 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Accordion } from "@/components/accordion";
 import { ApartmentForm } from "@/components/apartment-form";
 import { Tabs } from "@/components/tabs";
+import { Reveal } from "@/components/reveal";
+import { Badge, Card, DataRow, IconTile, SectionTitle } from "@/components/surface";
 import { Button, ConfirmDialog, Field, TextInput, type ButtonStatus } from "@/components/ui";
 import { downloadApartmentExcel } from "@/lib/excel-apartment";
 import {
@@ -15,7 +17,20 @@ import {
   saveApartment,
   vacateApartment,
 } from "@/lib/rentals.api";
-import { Building2, Store } from "lucide-react";
+import {
+  ArrowLeft,
+  Building2,
+  ClipboardList,
+  Download,
+  History,
+  LogOut,
+  Pencil,
+  Store,
+  Trash2,
+  TriangleAlert,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
 import {
   DEPOSITO_LABEL,
   TIPO_LABEL,
@@ -25,6 +40,7 @@ import {
   longDate,
   nextContractYear,
   pesosToCentavos,
+  rentMora,
   tenureLabel,
   type Apartment,
   type ApartmentInput,
@@ -32,6 +48,7 @@ import {
 } from "@/lib/rentals.logic";
 import { useActionStatus } from "@/lib/use-action-status";
 import { useRefreshRentals, useRentals } from "@/lib/use-rentals";
+import { toneStyle } from "@/lib/tones";
 
 export const Route = createFileRoute("/depto/$id")({ component: Detail });
 
@@ -59,25 +76,29 @@ function Detail() {
 
   if (portfolio.isPending) {
     return (
-      <div className="mx-auto max-w-xl space-y-6" aria-busy="true" aria-live="polite">
+      <div className="mx-auto max-w-2xl space-y-6" aria-busy="true" aria-live="polite">
         <div className="skeleton aspect-video w-full" />
-        <div className="space-y-2">
-          <div className="skeleton h-4 w-20" />
-          <div className="skeleton h-10 w-48" />
-        </div>
-        <div className="skeleton h-11 w-full" />
+        <div className="skeleton h-20 w-full" />
+        <div className="skeleton h-12 w-full" />
         <div className="skeleton h-64 w-full" />
       </div>
     );
   }
   if (!apt) {
     return (
-      <div className="space-y-3">
-        <p>No encontramos ese departamento.</p>
-        <Link to="/departamentos" className="text-sm text-accent">
-          Volver
+      <Card className="mx-auto max-w-md space-y-4 p-6 text-center">
+        <IconTile tone="crimson" size={44} className="mx-auto">
+          <TriangleAlert size={20} />
+        </IconTile>
+        <p className="font-display text-2xl text-fg">No encontramos esa propiedad</p>
+        <p className="text-sm text-muted">Puede que se haya borrado o que el enlace sea antiguo.</p>
+        <Link to="/departamentos" className="block">
+          <Button tone="quiet" className="w-full">
+            <ArrowLeft size={16} aria-hidden />
+            Volver a la cartera
+          </Button>
         </Link>
-      </div>
+      </Card>
     );
   }
 
@@ -137,26 +158,84 @@ function Detail() {
   }
 
   const today = portfolio.data?.today ?? "";
+  const late = apt.ocupado ? rentMora(apt, today) : null;
+  const TipoIcon = apt.tipo === "accesoria" ? Store : Building2;
 
   return (
-    <div className="mx-auto max-w-xl space-y-6">
-      {apt.foto ? (
-        <div className="overflow-hidden rounded-xl border border-line">
-          <img
-            src={apt.foto}
-            alt=""
-            className="aspect-video w-full object-cover transition-transform duration-300 hover:scale-[1.03]"
+    <div className="mx-auto max-w-2xl space-y-6">
+      {/* ── Portada ────────────────────────────────────────────────────── */}
+      <Card hero beam spotlight={false} className="rise p-0">
+        <div className="relative aspect-video overflow-hidden rounded-t-[inherit] sm:aspect-[21/9]">
+          {apt.foto ? (
+            <img src={apt.foto} alt="" className="size-full object-cover" />
+          ) : (
+            <span
+              aria-hidden
+              className="photo-fallback grid size-full place-items-center"
+              style={toneStyle(late ? "crimson" : apt.ocupado ? "sage" : "azure")}
+            >
+              <TipoIcon size={46} className="text-muted" strokeWidth={1.1} />
+            </span>
+          )}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg-deep via-bg-deep/45 to-transparent"
           />
+          <span className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+            <Badge tone={apt.ocupado ? "sage" : "azure"} dot className="bg-bg-deep/70 backdrop-blur">
+              {apt.ocupado ? "Rentado" : "Libre"}
+            </Badge>
+            <Badge tone="muted" className="bg-bg-deep/70 backdrop-blur">
+              <TipoIcon size={11} aria-hidden />
+              {TIPO_LABEL[apt.tipo]}
+            </Badge>
+          </span>
+          {late ? (
+            <span className="absolute top-3 right-3">
+              <Badge tone="crimson" className="bg-bg-deep/70 backdrop-blur">
+                <TriangleAlert size={11} aria-hidden />
+                {diasTexto(late.days)} sin pagar
+              </Badge>
+            </span>
+          ) : null}
+          <span className="absolute inset-x-0 bottom-0 block p-4">
+            <span className="block font-display text-3xl leading-tight text-fg md:text-4xl">
+              {apt.nombre}
+            </span>
+            {apt.direccion ? (
+              <span className="mt-0.5 block text-sm text-muted">{apt.direccion}</span>
+            ) : null}
+          </span>
         </div>
-      ) : null}
-      <div>
-        <p className="inline-flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted">
-          {apt.tipo === "accesoria" ? <Store size={12} aria-hidden /> : <Building2 size={12} aria-hidden />}
-          {TIPO_LABEL[apt.tipo]} · {apt.ocupado ? "Rentado" : "Libre"}
-        </p>
-        <h1 className="font-display text-4xl">{apt.nombre}</h1>
-        {apt.direccion ? <p className="mt-1 text-sm text-muted">{apt.direccion}</p> : null}
-      </div>
+
+        {!editing ? (
+          <span className="grid grid-cols-2 divide-x divide-line-soft border-t border-line-soft sm:grid-cols-4">
+            <QuickFact
+              label="Renta"
+              value={apt.ocupado ? formatMoney(apt.rentaCentavos) : "—"}
+              tone="accent"
+              icon={<Wallet size={13} aria-hidden />}
+            />
+            <QuickFact
+              label="Día de pago"
+              value={apt.ocupado && apt.diaPago ? `Día ${apt.diaPago}` : "—"}
+              tone="amber"
+            />
+            <QuickFact
+              label="Lleva"
+              value={apt.ocupado ? tenureLabel(apt.ingreso ?? apt.contratoInicio, today) : "—"}
+              tone="iris"
+            />
+            <QuickFact
+              label="Depósito"
+              value={
+                apt.depositoCentavos == null ? "Sin registro" : formatMoney(apt.depositoCentavos)
+              }
+              tone="sage"
+            />
+          </span>
+        ) : null}
+      </Card>
 
       {editing ? (
         <ApartmentForm
@@ -173,104 +252,174 @@ function Detail() {
               {
                 id: "ficha",
                 label: "Ficha",
+                icon: <ClipboardList size={15} />,
                 content: (
                   <div className="space-y-3">
-                    <section className="space-y-3 rounded-xl border border-line bg-raised p-4">
-                      <h2 className="font-display text-2xl">Ficha técnica</h2>
-                      <Row label="Medidor de luz" value={apt.medidorLuz || "Sin número"} />
-                      <Row label="Medidor de agua" value={apt.medidorAgua || "Sin número"} />
-                      <Row
-                        label="Luz"
-                        value={
-                          apt.luzDia
-                            ? `Día ${apt.luzDia} · ${formatMoney(apt.luzCentavos)}`
-                            : "Sin fecha de pago"
-                        }
-                      />
-                      <Row
-                        label="Agua"
-                        value={
-                          apt.aguaDia
-                            ? `Día ${apt.aguaDia} · ${formatMoney(apt.aguaCentavos)}`
-                            : "Sin fecha de pago"
-                        }
-                      />
-                      {apt.notaServicios ? (
-                        <p className="text-sm text-muted">{apt.notaServicios}</p>
-                      ) : null}
-                    </section>
+                    <Reveal>
+                      <Card spotlight className="p-4">
+                        <SectionTitle
+                          eyebrow="Se conserva aunque salga el inquilino"
+                          title="Ficha técnica"
+                          icon={<Building2 size={18} aria-hidden />}
+                          tone="amber"
+                          className="mb-2"
+                        />
+                        <DataRow label="Medidor de luz" value={apt.medidorLuz || "Sin número"} />
+                        <DataRow label="Medidor de agua" value={apt.medidorAgua || "Sin número"} />
+                        <DataRow
+                          label="Luz"
+                          tone="amber"
+                          value={
+                            apt.luzDia
+                              ? `Día ${apt.luzDia} · ${formatMoney(apt.luzCentavos)}`
+                              : "Sin fecha de pago"
+                          }
+                        />
+                        <DataRow
+                          label="Agua"
+                          tone="azure"
+                          value={
+                            apt.aguaDia
+                              ? `Día ${apt.aguaDia} · ${formatMoney(apt.aguaCentavos)}`
+                              : "Sin fecha de pago"
+                          }
+                        />
+                        {apt.notaServicios ? (
+                          <p className="well mt-3 px-3 py-2 text-sm text-muted">
+                            {apt.notaServicios}
+                          </p>
+                        ) : null}
+                      </Card>
+                    </Reveal>
 
-                    <section className="space-y-3 rounded-xl border border-line bg-raised p-4">
-                      <h2 className="font-display text-2xl">Estancia</h2>
-                      {apt.ocupado ? (
-                        <>
-                          <Row label="Inquilino" value={apt.inquilino || "Sin nombre"} />
-                          <Row label="Teléfono" value={apt.telefono || "—"} />
-                          <Row label="Renta" value={formatMoney(apt.rentaCentavos)} />
-                          <Row label="Día de pago" value={apt.diaPago ? `Día ${apt.diaPago}` : "—"} />
-                          <Row label="Ingresó" value={apt.ingreso ? longDate(apt.ingreso) : "—"} />
-                          <Row
-                            label="Lleva rentando"
-                            value={tenureLabel(apt.ingreso ?? apt.contratoInicio, today)}
-                          />
-                          <Row
-                            label="Contrato"
-                            value={
-                              apt.contratoInicio || apt.contratoFin
-                                ? `${apt.contratoInicio ? longDate(apt.contratoInicio) : "?"} → ${
-                                    apt.contratoFin ? longDate(apt.contratoFin) : "?"
-                                  }`
-                                : "Sin fechas"
-                            }
-                          />
-                          {apt.notas ? <p className="text-sm text-muted">{apt.notas}</p> : null}
-                          <Row
-                            label="Depósito"
-                            value={
-                              apt.depositoCentavos == null
-                                ? "Sin depósito"
-                                : `${formatMoney(apt.depositoCentavos)} · ${
-                                    apt.depositoEstado ? DEPOSITO_LABEL[apt.depositoEstado] : "En tu poder"
-                                  }`
-                            }
-                          />
-                          {apt.depositoFecha ? (
-                            <Row label="Dejó el depósito" value={longDate(apt.depositoFecha)} />
-                          ) : null}
-                          {apt.depositoNota ? (
-                            <p className="text-sm text-muted">{apt.depositoNota}</p>
-                          ) : null}
-                        </>
-                      ) : (
-                        <p className="text-sm text-muted">
-                          Libre. Puedes registrar al siguiente inquilino.
-                        </p>
-                      )}
-                    </section>
+                    <Reveal index={1}>
+                      <Card spotlight className="p-4">
+                        <SectionTitle
+                          eyebrow={apt.ocupado ? "Estancia en curso" : "Sin estancia activa"}
+                          title="Inquilino y contrato"
+                          icon={<ClipboardList size={18} aria-hidden />}
+                          tone={apt.ocupado ? "sage" : "azure"}
+                          className="mb-2"
+                        />
+                        {apt.ocupado ? (
+                          <>
+                            <DataRow
+                              label="Inquilino"
+                              value={apt.inquilino || "Sin nombre"}
+                              emphasis
+                            />
+                            <DataRow label="Teléfono" value={apt.telefono || "—"} />
+                            <DataRow
+                              label="Renta"
+                              value={formatMoney(apt.rentaCentavos)}
+                              tone="accent"
+                              emphasis
+                            />
+                            <DataRow
+                              label="Día de pago"
+                              value={apt.diaPago ? `Día ${apt.diaPago}` : "—"}
+                            />
+                            <DataRow
+                              label="Ingresó"
+                              value={apt.ingreso ? longDate(apt.ingreso) : "—"}
+                            />
+                            <DataRow
+                              label="Lleva rentando"
+                              value={tenureLabel(apt.ingreso ?? apt.contratoInicio, today)}
+                              tone="iris"
+                            />
+                            <DataRow
+                              label="Contrato"
+                              value={
+                                apt.contratoInicio || apt.contratoFin
+                                  ? `${apt.contratoInicio ? longDate(apt.contratoInicio) : "?"} → ${
+                                      apt.contratoFin ? longDate(apt.contratoFin) : "?"
+                                    }`
+                                  : "Sin fechas"
+                              }
+                            />
+                            {apt.notas ? (
+                              <p className="well mt-3 px-3 py-2 text-sm text-muted">{apt.notas}</p>
+                            ) : null}
+                            <DataRow
+                              label="Depósito"
+                              tone="sage"
+                              value={
+                                apt.depositoCentavos == null
+                                  ? "Sin depósito"
+                                  : `${formatMoney(apt.depositoCentavos)} · ${
+                                      apt.depositoEstado
+                                        ? DEPOSITO_LABEL[apt.depositoEstado]
+                                        : "En tu poder"
+                                    }`
+                              }
+                            />
+                            {apt.depositoFecha ? (
+                              <DataRow
+                                label="Dejó el depósito"
+                                value={longDate(apt.depositoFecha)}
+                              />
+                            ) : null}
+                            {apt.depositoNota ? (
+                              <p className="well mt-3 px-3 py-2 text-sm text-muted">
+                                {apt.depositoNota}
+                              </p>
+                            ) : null}
+                          </>
+                        ) : (
+                          <p className="text-sm text-muted">
+                            Libre. Puedes registrar al siguiente inquilino con{" "}
+                            <strong className="font-medium text-fg">Editar datos</strong>: la foto y
+                            los medidores siguen aquí.
+                          </p>
+                        )}
+                      </Card>
+                    </Reveal>
 
-                    {apt.ocupado ? <IncreaseCard apt={apt} today={today} /> : null}
+                    {apt.ocupado ? (
+                      <Reveal index={2}>
+                        <IncreaseCard apt={apt} today={today} />
+                      </Reveal>
+                    ) : null}
                   </div>
                 ),
               },
               {
                 id: "historial",
                 label: "Historial",
+                icon: <History size={15} />,
                 content: (
-                  <div className="space-y-2">
-                    {history.data && history.data.length > 0 ? (
+                  <div className="space-y-3">
+                    {history.isPending ? (
+                      <div className="space-y-2" aria-busy="true" aria-live="polite">
+                        <div className="skeleton h-14 w-full" />
+                        <div className="skeleton h-24 w-full" />
+                      </div>
+                    ) : history.data && history.data.length > 0 ? (
                       <Accordion
                         title={`Estancias anteriores (${history.data.length})`}
-                        defaultOpen={false}
+                        detail="Quién rentó aquí, cuánto pagó y qué pasó con su depósito."
+                        icon={<History size={18} aria-hidden />}
+                        tone="iris"
+                        defaultOpen
                       >
                         <ul className="space-y-2">
-                          {history.data.map((stay) => (
-                            <li key={stay.id} className="rounded-xl border border-line px-4 py-3 text-sm">
-                              <p>{stay.inquilino || "Sin nombre"}</p>
-                              <p className="text-muted">
-                                {stay.inicio ? longDate(stay.inicio) : "?"} —{" "}
-                                {stay.fin ? longDate(stay.fin) : "?"} · {formatMoney(stay.rentaCentavos)}
+                          {history.data.map((stay, index) => (
+                            <li key={stay.id} className="well px-4 py-3 text-sm">
+                              <p className="flex items-center gap-2 font-medium text-fg">
+                                <span aria-hidden className="num text-xs text-muted">
+                                  {String(index + 1).padStart(2, "0")}
+                                </span>
+                                {stay.inquilino || "Sin nombre"}
                               </p>
-                              <p className="text-muted">
+                              <p className="mt-1 text-muted">
+                                {stay.inicio ? longDate(stay.inicio) : "?"} —{" "}
+                                {stay.fin ? longDate(stay.fin) : "?"} ·{" "}
+                                <span className="num text-accent-soft">
+                                  {formatMoney(stay.rentaCentavos)}
+                                </span>
+                              </p>
+                              <p className="mt-0.5 text-muted">
                                 Depósito{" "}
                                 {stay.depositoCentavos == null
                                   ? "no registrado"
@@ -285,9 +434,16 @@ function Detail() {
                         </ul>
                       </Accordion>
                     ) : (
-                      <p className="text-sm text-muted">
-                        Todavía no hay estancias anteriores en este departamento.
-                      </p>
+                      <Card className="p-5 text-center">
+                        <IconTile tone="iris" size={44} className="mx-auto">
+                          <History size={20} />
+                        </IconTile>
+                        <p className="mt-3 font-display text-xl text-fg">Sin estancias anteriores</p>
+                        <p className="mt-1 text-sm text-muted">
+                          Cuando alguien salga, su estancia se guardará aquí con su renta y su
+                          depósito.
+                        </p>
+                      </Card>
                     )}
                   </div>
                 ),
@@ -295,36 +451,44 @@ function Detail() {
             ]}
           />
 
-          <div className="flex flex-col gap-2">
-            <Button onClick={() => setEditing(true)}>Editar datos</Button>
-            <Button
-              tone="quiet"
-              status={exportAction.status}
-              onClick={() =>
-                void exportAction.run(async () => {
-                  try {
-                    await downloadApartmentExcel(id);
-                    return true;
-                  } catch (error) {
-                    toast.error(
-                      error instanceof Error ? error.message : "No se pudo crear el Excel.",
-                    );
-                    return false;
-                  }
-                })
-              }
-            >
-              Exportar Excel
+          <Card spotlight className="space-y-2 p-3">
+            <Button onClick={() => setEditing(true)} className="w-full">
+              <Pencil size={16} aria-hidden />
+              Editar datos
             </Button>
-            {apt.ocupado ? (
-              <Button tone="quiet" onClick={() => setVacateOpen(true)}>
-                El inquilino salió
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button
+                tone="quiet"
+                status={exportAction.status}
+                onClick={() =>
+                  void exportAction.run(async () => {
+                    try {
+                      await downloadApartmentExcel(id);
+                      return true;
+                    } catch (error) {
+                      toast.error(
+                        error instanceof Error ? error.message : "No se pudo crear el Excel.",
+                      );
+                      return false;
+                    }
+                  })
+                }
+              >
+                <Download size={16} aria-hidden />
+                Exportar Excel
               </Button>
-            ) : null}
-            <Button tone="ghost" onClick={() => setDeleteOpen(true)}>
-              Eliminar departamento
+              {apt.ocupado ? (
+                <Button tone="quiet" onClick={() => setVacateOpen(true)}>
+                  <LogOut size={16} aria-hidden />
+                  El inquilino salió
+                </Button>
+              ) : null}
+            </div>
+            <Button tone="danger" onClick={() => setDeleteOpen(true)} className="w-full">
+              <Trash2 size={16} aria-hidden />
+              Eliminar {TIPO_LABEL[apt.tipo].toLowerCase()}
             </Button>
-          </div>
+          </Card>
         </>
       )}
 
@@ -332,7 +496,7 @@ function Detail() {
         open={vacateOpen}
         onOpenChange={setVacateOpen}
         title="¿El inquilino ya salió?"
-        body="Se borran su nombre, la renta, el contrato, el día de pago, las notas y los montos de luz y agua. El depósito queda en el historial de esta estancia. Se conservan la foto y los números de medidor."
+        body="Se borran su nombre, la renta, el contrato, el día de pago, las notas y los montos de luz y agua. El depósito queda en el historial de esa estancia. Se conservan la foto y los números de medidor."
         confirmLabel="Borrar datos del inquilino"
         pending={pending}
         onConfirm={() => void vacate()}
@@ -350,12 +514,32 @@ function Detail() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+/** Dato rápido de la portada. */
+function QuickFact({
+  label,
+  value,
+  tone,
+  icon,
+}: {
+  label: string;
+  value: string;
+  tone: "accent" | "sage" | "amber" | "iris";
+  icon?: ReactNode;
+}) {
   return (
-    <div className="flex items-baseline justify-between gap-4 text-sm">
-      <span className="text-muted">{label}</span>
-      <span className="text-right">{value}</span>
-    </div>
+    <span className="block px-3 py-3" style={toneStyle(tone)}>
+      <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.12em] text-muted uppercase">
+        {icon ? (
+          <span aria-hidden style={{ color: "var(--tone)" }}>
+            {icon}
+          </span>
+        ) : null}
+        {label}
+      </span>
+      <span className="mt-1 block truncate font-display text-base text-fg" title={value}>
+        {value}
+      </span>
+    </span>
   );
 }
 
@@ -417,20 +601,23 @@ function IncreaseCard({ apt, today }: { apt: Apartment; today: string }) {
         : `El siguiente año es el ${longDate(next.date)}.`;
 
   return (
-    <section
-      className={
-        due
-          ? "space-y-3 rounded-xl border border-accent/40 bg-accent/10 p-4"
-          : "space-y-3 rounded-xl border border-line bg-raised p-4"
-      }
+    <Card
+      spotlight
+      className={due ? "rail space-y-3 p-4" : "space-y-3 p-4"}
+      tone={due ? "iris" : "muted"}
     >
-      <h2 className="font-display text-2xl">Año de contrato</h2>
-      <p className="text-sm text-muted">{headline}</p>
-      <Row label="Renta actual" value={formatMoney(apt.rentaCentavos)} />
+      <SectionTitle
+        eyebrow="Aviso automático"
+        title="Año de contrato"
+        detail={headline}
+        icon={<TrendingUp size={18} aria-hidden />}
+        tone={due ? "iris" : "muted"}
+      />
+      <DataRow label="Renta actual" value={formatMoney(apt.rentaCentavos)} tone="accent" emphasis />
       {due ? (
         <form className="space-y-3" onSubmit={(event) => void onSave(event)}>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Nueva renta" hint="Pesos">
+            <Field label="Nueva renta" hint="Pesos mexicanos (MXN)">
               <TextInput
                 inputMode="decimal"
                 value={monto}
@@ -448,21 +635,26 @@ function IncreaseCard({ apt, today }: { apt: Apartment; today: string }) {
               />
             </Field>
           </div>
-          <Button type="submit" status={save.status as ButtonStatus}>
+          <Button type="submit" status={save.status as ButtonStatus} className="w-full">
             Guardar nueva renta
           </Button>
         </form>
       ) : null}
       {mine.length > 0 ? (
-        <ul className="space-y-1">
-          {mine.map((row: RentAdjustment) => (
-            <li key={row.id} className="text-sm text-muted">
-              {longDate(row.vigenteDesde)} · {formatMoney(row.anteriorCentavos)} →{" "}
-              {formatMoney(row.nuevoCentavos)}
-            </li>
-          ))}
-        </ul>
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-semibold tracking-[0.12em] text-muted uppercase">
+            Aumentos anteriores
+          </p>
+          <ul className="space-y-1">
+            {mine.map((row: RentAdjustment) => (
+              <li key={row.id} className="well num px-3 py-2 text-sm text-muted">
+                {longDate(row.vigenteDesde)} · {formatMoney(row.anteriorCentavos)} →{" "}
+                <span className="text-accent-soft">{formatMoney(row.nuevoCentavos)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
-    </section>
+    </Card>
   );
 }

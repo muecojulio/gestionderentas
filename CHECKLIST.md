@@ -21,6 +21,7 @@ revisión lleva la nota **(nuevo)**.
 | 13 | Aviso 35 días antes del vencimiento del contrato | ✅ **(nuevo: más confiable)** | Avisos + notificación |
 | 14 | Botón por departamento: borrar datos cuando sale el inquilino | ✅ **(nuevo: también en la lista)** | Ficha y Propiedades |
 | 15 | La foto y los medidores NO se borran al salir el inquilino | ✅ | Ficha (siguen ahí) |
+| 16 | Interfaz viva: botones, pestañas, carruseles, swipe, buscador y movimiento reducido | ✅ **(nuevo)** | Toda la app → apartado 16 |
 
 ---
 
@@ -156,6 +157,67 @@ sueltan en cuanto la abres, y mientras la traigas abierta suenan a su hora.
 
 ---
 
+## 16. Interfaz viva: cómo responde cada control **(nuevo)**
+
+Un solo sistema de interacciones para toda la app, reutilizable y accesible. Las
+piezas viven en `src/components/` y las utilidades visuales en `src/styles.css`
+(inspiradas en componentes abiertos públicos: shadcn/ui para estados y foco,
+magicui para el haz del borde, el foco que sigue al cursor y el brillo de los
+botones, y motion/primitives para la pulsación).
+
+- [x] **Botones**: objetivo táctil de 44 px o más, se hunden al presionar
+      (`.press`), se elevan solo con ratón (`.lift`), el principal tiene un
+      brillo que lo cruza (`.sheen`).
+- [x] **Estados del botón**: inactivo, **cargando** (spinner + `aria-busy`, no se
+      puede volver a enviar), **éxito** (palomita) y **error** (sacudida breve +
+      icono de alerta, no solo color). El estado también se anuncia con
+      `role="status"`.
+- [x] **Pestañas**: semántica completa (`tablist` / `tab` / `tabpanel`,
+      `aria-selected`, `aria-controls`), píldora que se desliza a la opción
+      activa y la centra, teclado con ← → Inicio Fin, bordes difuminados y pista
+      "Desliza" cuando no caben, y **swipe horizontal** entre paneles con eje
+      bloqueado (solo si el gesto lateral supera 1,2 veces al vertical).
+- [x] **Carriles y chips**: scroll nativo con *momentum* y `scroll-snap`, barra
+      oculta solo a la vista, indicadores de desbordamiento que aparecen solo
+      cuando hay contenido fuera, la opción activa se centra sola, y cada chip
+      marcado lleva **palomita + contador** (no solo color).
+- [x] **Tarjetas y carruseles**: en el teléfono las propiedades y el resumen se
+      deslizan de lado con la siguiente tarjeta asomando; en pantallas grandes se
+      vuelven cuadrícula. Elevación al pasar el cursor, foco que sigue al ratón y
+      entrada escalonada al hacer scroll.
+- [x] **Swipe para revelar acciones**: en Propiedades y en la Lista negra. Tope
+      del ancho del panel, umbral para abrir/cerrar, el clic posterior al arrastre
+      no activa la tarjeta, el scroll vertical sigue siendo del navegador, y las
+      acciones ocultas quedan fuera del foco (`inert`). Siempre hay un botón ⋯
+      visible y en escritorio las acciones están a la vista.
+- [x] **Buscador (combobox)**: filtra mientras escribes ignorando mayúsculas y
+      acentos, **resalta el trozo que coincide**, anuncia cuántas opciones quedan,
+      se maneja completo con teclado (↑ ↓ Inicio Fin Enter Esc), mantiene visible
+      la opción activa, dice con claridad cuando no hay coincidencias y se cierra
+      al tocar fuera.
+- [x] **Campos**: etiqueta propia (el *placeholder* no es el nombre), halo de foco
+      de 3 px y superficie hundida. **Interruptores** con `role="switch"` y
+      `aria-checked`, área táctil de 48 px y color por estado (verde salvia =
+      cobrado, carmín = mora). **Plegables** que abren y cierran sin saltos y con
+      `aria-expanded` + contenido `inert` al cerrarse.
+- [x] **Movimiento reducido**: con `prefers-reduced-motion` se apagan aurora,
+      haz, brillo, flotación, barras y sacudidas; el scroll suave pasa a ser
+      inmediato y las entradas al hacer scroll se quedan quietas (con una red de
+      seguridad por si no hay JavaScript).
+- [x] **Aspecto**: fondo por capas (cielo, aurora, retícula de libro de cuentas,
+      grano y viñeta), tarjetas con gradiente y borde iluminado, tejas de icono
+      por tono (luz ámbar, agua azul, mora carmín, contrato iris, cobrado verde
+      salvia) y cifras grandes con gradiente y números tabulares.
+- Prueba: toca un botón y mira cómo se hunde; en la ficha desliza entre **Ficha**
+      e **Historial**; en Propiedades desliza una fila hacia la izquierda; busca
+      "roma" en el buscador y mira el resaltado; activa "reducir movimiento" en
+      tu sistema y recorre la app otra vez.
+- Código: `src/components/{ui,tabs,hscroller,swipeable,combobox,accordion,surface,reveal,alert-card,animated-counter,spotlight-layer}.tsx`,
+  `src/lib/{motion,tones,spotlight,search-highlight,use-action-status}.ts` y
+  `src/styles.css`.
+
+---
+
 ## Lo que la app ya traía además de tu lista
 
 - [x] Departamentos **y accesorias** (mismo formato de ficha, filtros por tipo).
@@ -181,12 +243,34 @@ sueltan en cuanto la abres, y mientras la traigas abierta suenan a su hora.
 | `src/lib/rentals.logic.ts` | El recordatorio de renta no suena si ese mes ya está cobrado. |
 | `src/lib/notifications.test.ts` | **Nuevo.** Pruebas de las reglas de avisos. |
 | `src/lib/rentals.logic.test.ts` | Pruebas nuevas: 1 día antes, 35 días antes, antigüedad en años y meses. |
-| `package.json` | `npm test` corre también las pruebas de avisos. |
+| `package.json` | `npm test` corre también las pruebas de avisos y del resaltado del buscador. |
+| `src/styles.css` | Sistema visual por capas: tokens nuevos (sage, carmín, ámbar, azul, iris), superficies (`.card`, `.well`, `.glass`), microinteracciones (`.press`, `.lift`, `.sheen`, `.beam`, `.spotlight`, `.reveal`) y todo el apartado de movimiento reducido. |
+| `src/components/surface.tsx` | **Nuevo.** Tarjetas, cabeceras de sección, tejas de icono, insignias, mosaicos de cifras y filas de datos. |
+| `src/components/reveal.tsx` | **Nuevo.** Entrada escalonada al hacer scroll, con `IntersectionObserver`. |
+| `src/components/alert-card.tsx` | **Nuevo.** Tarjeta de aviso compartida por Inicio y Avisos. |
+| `src/components/spotlight-layer.tsx` | **Nuevo.** Un solo listener global para el foco que sigue al cursor. |
+| `src/lib/tones.ts` | **Nuevo.** Tonos semánticos y sus clases/variables. |
+| `src/lib/spotlight.ts` | **Nuevo.** Alimenta `--mx`/`--my` sin re-renders; se apaga con táctil o movimiento reducido. |
+| `src/lib/search-highlight.ts` | **Nuevo.** Resaltado de la coincidencia del buscador (ignora acentos y signos). |
+| `src/lib/search-highlight.test.ts` | **Nuevo.** Pruebas del resaltado. |
+| `src/components/ui.tsx` | Botones con tonos/estados/brillo, `IconButton`, campos con halo de foco, interruptor con área táctil de 48 px, diálogo y estado vacío rediseñados. |
+| `src/components/tabs.tsx` | Indicador con gradiente, dirección de entrada del panel, bordes difuminados y pista de "Desliza". |
+| `src/components/hscroller.tsx` | Chips con tono, palomita y contador; aviso accesible de más opciones. |
+| `src/components/swipeable.tsx` | `RowAction` compartido (spinner y tono propios), superficie de fila y botón ⋯ con icono de cerrar. |
+| `src/components/combobox.tsx` | Resaltado de coincidencias, anuncio del número de opciones, detalle por opción y guía de teclado. |
+| `src/components/accordion.tsx` | Cabecera con teja de icono, detalle y chequeta en círculo. |
+| `src/components/shell.tsx` | Barra lateral con tarjeta "Hoy", cabecera de vidrio con contador de avisos y acceso directo a "Nueva propiedad", navegación inferior con píldora animada y transición entre pantallas. |
+| `src/components/apartment-form.tsx` | Selector de tipo y de depósito como fichas marcables, zona de foto con "Cambiar foto" siempre visible, luz y agua en paneles propios, errores con icono y `role="alert"`. |
+| `src/components/data-error.tsx` | Error con teja carmín, motivo a la vista y reintento. |
+| `src/lib/error-component.tsx` | Pantalla de error global con la piel de la app (el mensaje sigue visible). |
+| `src/routes/*.tsx` | Inicio, Propiedades, ficha, Ingresos, Agenda, Lista, Avisos, Nueva propiedad y Privacidad usan el sistema (héroe con haz, mosaicos, carruseles, rieles de color y entradas escalonadas). |
+| `src/routes/__root.tsx` | Fondo por capas, avisos emergentes con la piel de la app y red de seguridad sin JavaScript. |
+
 
 ## Cómo verificar todo de un golpe
 
 ```sh
-npm test        # 44 pruebas: reglas de avisos, mora, aumentos, meses, feriados
+npm test        # 49 pruebas: avisos, mora, aumentos, meses, feriados, resaltado
 npm run typecheck
 npm run lint
 npm run dev     # app en http://localhost:8080

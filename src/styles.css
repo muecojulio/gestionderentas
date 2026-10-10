@@ -4,24 +4,57 @@
 
 /*
  * Identidad visual: tema oscuro cálido (carbón + terracota) con Fraunces para
- * titulares y Outfit para texto. El sistema de microinteracciones vive en las
- * utilidades de abajo (.press, .lift, .shake, .skeleton, .fade-edge…) y se
- * inspira en componentes abiertos públicos: shadcn/ui (estados y foco),
- * motion/primitives (microinteracciones de botón) y magicui (fondos vivos).
+ * titulares y Outfit para texto. La app es "viva" por capas: un fondo con
+ * aurora, retícula de libro de cuentas y grano; superficies con gradiente,
+ * borde iluminado arriba y foco que sigue al cursor; acentos semánticos por
+ * tipo de cobro (luz ámbar, agua azul, mora carmín, pagado verde salvia).
+ *
+ * El sistema de microinteracciones vive en las utilidades de abajo (.press,
+ * .lift, .card, .spotlight, .sheen, .beam, .reveal, .shake, .skeleton,
+ * .fade-edge…) y se inspira en componentes abiertos públicos: shadcn/ui
+ * (estados, foco y semántica), magicui (border beam, spotlight, shimmer) y
+ * motion/primitives (microinteracciones de pulsación). Todo respeta
+ * `prefers-reduced-motion` al final del archivo.
  */
 
 @theme {
+  /* Superficies */
   --color-bg: #121410;
+  --color-bg-deep: #0b0d0a;
   --color-raised: #1c1f19;
-  --color-fg: #f3f0e8;
-  --color-muted: #9a978c;
+  --color-raised-2: #242821;
+  --color-fg: #f4f1e9;
+  --color-muted: #a5a296;
+  --color-line: #343930;
+  --color-line-soft: #262b23;
+  /* Halo de foco de los campos (anillo de 3 px al enfocar) */
+  --color-ring: rgb(212 120 74 / 0.32);
+
+  /* Marca */
   --color-accent: #d4784a;
+  --color-accent-soft: #eda67c;
+  --color-accent-deep: #a2522c;
   --color-accent-fg: #1a120e;
-  --color-line: #31352c;
+
+  /* Semánticos: cada uno acompaña a un icono y a un texto, nunca habla solo */
+  --color-sage: #96b46c; /* cobrado / en orden */
+  --color-crimson: #e2605a; /* mora / peligro */
+  --color-amber: #e3b23c; /* luz / por vencer */
+  --color-azure: #6aa9d6; /* agua / informativo */
+  --color-iris: #ab8ad1; /* contrato / aniversario */
+
   --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Fraunces", Georgia, "Times New Roman", serif;
   --radius-lg: 1rem;
   --radius-xl: 1.35rem;
+  --radius-2xl: 1.75rem;
+}
+
+/* Ángulo animable para el haz que recorre el borde de la tarjeta principal. */
+@property --beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
 }
 
 @layer base {
@@ -35,6 +68,10 @@
     color: var(--color-fg);
     font-family: var(--font-sans);
     line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /* La página nunca se desplaza de lado: los carruseles viven dentro. */
+    overflow-x: clip;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
@@ -55,12 +92,17 @@
   }
   /* Foco de teclado siempre visible, también con ratón tras navegar con flechas. */
   :focus-visible {
-    outline: 2px solid var(--color-accent);
+    outline: 2px solid var(--color-accent-soft);
     outline-offset: 2px;
   }
   ::selection {
     background: color-mix(in srgb, var(--color-accent) 45%, transparent);
     color: var(--color-fg);
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
   }
   /* Scroll suave solo cuando el usuario no pidió movimiento reducido. */
   @media (prefers-reduced-motion: no-preference) {
@@ -70,20 +112,30 @@
   }
 }
 
-/* ── Fondo vivo: aurora + grano ─────────────────────────────────────────── */
+/* ── Fondo vivo: aurora + retícula + haz + grano ───────────────────────── */
 
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 50% -10%, #1b1f18 0%, transparent 60%),
+    linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-deep) 100%);
+}
 .aurora {
   position: fixed;
   inset: 0;
-  z-index: -2;
+  z-index: -3;
   overflow: hidden;
   pointer-events: none;
-  background: var(--color-bg);
 }
 .aurora i {
   position: absolute;
   border-radius: 50%;
   filter: blur(90px);
+  opacity: 0.9;
   will-change: transform;
 }
 .aurora i:nth-child(1) {
@@ -93,7 +145,7 @@
   top: -28vmax;
   background: radial-gradient(
     closest-side,
-    color-mix(in srgb, var(--color-accent) 20%, transparent),
+    color-mix(in srgb, var(--color-accent) 26%, transparent),
     transparent 72%
   );
   animation: drift-a 26s ease-in-out infinite alternate;
@@ -105,7 +157,7 @@
   bottom: -24vmax;
   background: radial-gradient(
     closest-side,
-    color-mix(in srgb, #7a8b4f 22%, transparent),
+    color-mix(in srgb, #7a8b4f 26%, transparent),
     transparent 72%
   );
   animation: drift-b 34s ease-in-out infinite alternate;
@@ -117,10 +169,22 @@
   top: 40vh;
   background: radial-gradient(
     closest-side,
-    color-mix(in srgb, #b98a3e 12%, transparent),
+    color-mix(in srgb, #b98a3e 14%, transparent),
     transparent 70%
   );
   animation: drift-a 42s ease-in-out infinite alternate-reverse;
+}
+.aurora i:nth-child(4) {
+  width: 34vmax;
+  height: 34vmax;
+  right: 12vw;
+  top: -14vmax;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--color-iris) 12%, transparent),
+    transparent 70%
+  );
+  animation: drift-b 50s ease-in-out infinite alternate-reverse;
 }
 
 @keyframes drift-a {
@@ -140,6 +204,20 @@
   }
 }
 
+/* Retícula de libro de cuentas: da textura sin competir con el contenido. */
+.ledger {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--color-fg) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--color-fg) 5%, transparent) 1px, transparent 1px);
+  background-size: 30px 30px;
+  mask-image: radial-gradient(130% 95% at 50% -5%, #000 18%, transparent 72%);
+  opacity: 0.55;
+}
+
 .grain {
   position: fixed;
   inset: 0;
@@ -147,6 +225,178 @@
   pointer-events: none;
   opacity: 0.05;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Viñeta: acerca el centro y da profundidad a los bordes. */
+.vignette {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(115% 85% at 50% 40%, transparent 55%, rgb(0 0 0 / 0.45) 100%);
+}
+
+/* ── Componentes base (superficies y controles) ────────────────────────── */
+/*
+ * Los gradientes, mezclas de color y sombras viven aquí, con nombre, para que
+ * las utilidades de Tailwind sigan mandando sobre el layout y no haya que
+ * escribir valores arbitrarios frágiles dentro de los componentes.
+ */
+
+@layer components {
+  /* Botones: cada tono tiene gradiente, borde y sombra propios. */
+  .btn-primary {
+    color: var(--color-accent-fg);
+    border: 1px solid color-mix(in srgb, var(--color-accent-soft) 45%, transparent);
+    background-image: linear-gradient(
+      180deg,
+      #e99c6a 0%,
+      var(--color-accent) 52%,
+      #c2663a 100%
+    );
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.35),
+      0 14px 30px -16px color-mix(in srgb, var(--color-accent) 90%, transparent);
+  }
+  .btn-quiet {
+    color: var(--color-fg);
+    border: 1px solid var(--color-line);
+    background-image: linear-gradient(180deg, var(--color-raised-2), var(--color-raised));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  }
+  .btn-ghost {
+    color: var(--color-muted);
+    border: 1px solid transparent;
+    background: transparent;
+  }
+  .btn-danger {
+    color: color-mix(in srgb, var(--color-crimson) 80%, #fff 20%);
+    border: 1px solid color-mix(in srgb, var(--color-crimson) 45%, transparent);
+    background: color-mix(in srgb, var(--color-crimson) 13%, transparent);
+  }
+  @media (hover: hover) {
+    .btn-primary:hover:not(:disabled) {
+      box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.45),
+        0 20px 40px -16px var(--color-accent);
+      filter: saturate(1.06);
+    }
+    .btn-quiet:hover:not(:disabled) {
+      border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-line));
+    }
+    .btn-ghost:hover:not(:disabled) {
+      color: var(--color-fg);
+      background: rgb(255 255 255 / 0.06);
+    }
+    .btn-danger:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--color-crimson) 20%, transparent);
+    }
+  }
+
+  /* Campos de texto: superficie hundida que se ilumina al enfocar. */
+  .control {
+    width: 100%;
+    color: var(--color-fg);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-lg);
+    background-image: linear-gradient(180deg, rgb(0 0 0 / 0.3), rgb(0 0 0 / 0.12));
+    box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.4);
+    transition:
+      border-color 200ms ease,
+      box-shadow 200ms ease,
+      background-color 200ms ease;
+  }
+  .control::placeholder {
+    color: color-mix(in srgb, var(--color-muted) 65%, transparent);
+  }
+  @media (hover: hover) {
+    .control:hover:not(:focus) {
+      border-color: color-mix(in srgb, var(--color-fg) 16%, var(--color-line));
+    }
+  }
+  .control:focus {
+    border-color: var(--color-accent);
+    outline: none;
+    box-shadow:
+      inset 0 1px 2px rgb(0 0 0 / 0.3),
+      0 0 0 3px var(--color-ring);
+  }
+
+  /* Chips de filtro: encendido con gradiente del tono, apagado neutro. */
+  .chip-on {
+    color: var(--color-accent-fg);
+    border-color: transparent;
+    background-image: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--tone) 86%, #fff 14%),
+      var(--tone)
+    );
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.35),
+      0 12px 26px -16px var(--tone);
+  }
+  .chip-off {
+    color: var(--color-muted);
+    background-image: linear-gradient(180deg, var(--color-raised-2), var(--color-raised));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  }
+  @media (hover: hover) {
+    .chip-off:hover {
+      color: var(--color-fg);
+    }
+  }
+
+  /* Pista del interruptor cuando está encendido. */
+  .switch-on {
+    border-color: transparent;
+    background-image: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--tone) 88%, #fff 12%),
+      var(--tone)
+    );
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.3),
+      0 10px 22px -12px var(--tone);
+  }
+
+  /* Acción revelada por swipe (o fija en escritorio). */
+  .action {
+    color: color-mix(in srgb, var(--tone) 78%, #fff 22%);
+    border-left: 1px solid rgb(0 0 0 / 0.35);
+    background-image: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--tone) 30%, transparent),
+      color-mix(in srgb, var(--tone) 13%, transparent)
+    );
+  }
+
+  /* Superficie de fila/tarjeta de lista. */
+  .row-surface {
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-xl);
+    background-image: linear-gradient(
+      178deg,
+      var(--color-raised-2) 0%,
+      var(--color-raised) 62%,
+      #191c16 100%
+    );
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.05),
+      0 18px 36px -30px rgb(0 0 0 / 0.9);
+  }
+
+  /* Navegación: píldora encendida con gradiente y resplandor. */
+  .nav-on {
+    color: var(--color-fg);
+    background-image: linear-gradient(
+      100deg,
+      color-mix(in srgb, var(--color-accent) 26%, transparent),
+      color-mix(in srgb, var(--color-accent) 8%, transparent)
+    );
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.07),
+      inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 32%, transparent);
+  }
 }
 
 /* ── Microinteracciones ─────────────────────────────────────────────────── */
@@ -160,6 +410,7 @@
       border-color 180ms ease,
       color 180ms ease,
       opacity 180ms ease,
+      box-shadow 200ms ease,
       filter 180ms ease;
   }
   .press:active:not(:disabled) {
@@ -170,13 +421,13 @@
   @media (hover: hover) {
     .lift {
       transition:
-        transform 180ms ease,
-        box-shadow 180ms ease,
-        border-color 180ms ease;
+        transform 200ms cubic-bezier(0.2, 0, 0, 1),
+        box-shadow 200ms ease,
+        border-color 200ms ease;
     }
     .lift:hover:not(:disabled) {
       transform: translateY(-2px);
-      box-shadow: 0 14px 34px -14px rgb(0 0 0 / 0.55);
+      box-shadow: 0 18px 40px -20px rgb(0 0 0 / 0.75);
     }
   }
 
@@ -187,11 +438,14 @@
 
   /* Placeholder de carga con brillo deslizante. */
   .skeleton {
+    position: relative;
+    overflow: hidden;
     border-radius: var(--radius-lg);
+    border: 1px solid var(--color-line-soft);
     background: linear-gradient(
       100deg,
       var(--color-raised) 30%,
-      color-mix(in srgb, var(--color-fg) 7%, var(--color-raised)) 50%,
+      color-mix(in srgb, var(--color-fg) 8%, var(--color-raised)) 50%,
       var(--color-raised) 70%
     );
     background-size: 200% 100%;
@@ -214,11 +468,11 @@
     position: absolute;
     top: 0;
     bottom: 0;
-    width: 2.5rem;
+    width: 2.75rem;
     pointer-events: none;
     opacity: 0;
     transition: opacity 200ms ease;
-    z-index: 1;
+    z-index: 2;
   }
   .fade-edge.left {
     left: 0;
@@ -230,6 +484,306 @@
   }
   .fade-edge.on {
     opacity: 1;
+  }
+
+  /* ── Superficies ──────────────────────────────────────────────────────── */
+
+  /* Tarjeta base: gradiente cálido, borde con luz arriba y sombra profunda. */
+  .card {
+    position: relative;
+    isolation: isolate;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--color-line);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--color-fg) 4%, transparent), transparent 46%),
+      linear-gradient(178deg, var(--color-raised-2) 0%, var(--color-raised) 58%, #191c16 100%);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, #fff 7%, transparent),
+      0 1px 2px rgb(0 0 0 / 0.35),
+      0 24px 48px -34px rgb(0 0 0 / 0.95);
+  }
+
+  /* Capa decorativa interna: recorta resplandores a la forma de la tarjeta
+     sin recortar el haz del borde (que vive en `::after`). */
+  .card-glow {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  /* Variante para paneles muy destacados (héroe, resumen del mes). */
+  .card-hero {
+    border-color: color-mix(in srgb, var(--color-accent) 32%, var(--color-line));
+    background:
+      radial-gradient(120% 120% at 12% -10%, color-mix(in srgb, var(--color-accent) 22%, transparent), transparent 58%),
+      radial-gradient(90% 90% at 100% 0%, color-mix(in srgb, var(--color-amber) 12%, transparent), transparent 60%),
+      linear-gradient(178deg, #262a22 0%, var(--color-raised) 62%, #171a14 100%);
+  }
+
+  /* Superficie hundida: dentro de una tarjeta, separa bloques de datos. */
+  .well {
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-line-soft);
+    background: linear-gradient(180deg, rgb(0 0 0 / 0.22), rgb(0 0 0 / 0.08));
+    box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.35);
+  }
+
+  /* Vidrio para barras fijas (cabecera, navegación inferior). */
+  .glass {
+    background: color-mix(in srgb, var(--color-bg) 72%, transparent);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+  }
+
+  /* Elevación de tarjeta solo con ratón: sube y enciende el borde. */
+  @media (hover: hover) {
+    .card-hover {
+      transition:
+        transform 220ms cubic-bezier(0.2, 0, 0, 1),
+        box-shadow 220ms ease,
+        border-color 220ms ease;
+    }
+    .card-hover:hover {
+      transform: translateY(-3px);
+      border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-line));
+      box-shadow:
+        inset 0 1px 0 color-mix(in srgb, #fff 9%, transparent),
+        0 26px 54px -26px rgb(0 0 0 / 0.85),
+        0 0 0 1px color-mix(in srgb, var(--color-accent) 12%, transparent);
+    }
+  }
+
+  /* Foco que sigue al cursor (magicui "spotlight"). Solo con ratón: en táctil
+     no hay hover y el gesto no debe decorar nada. */
+  .spotlight::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 260ms ease;
+    background: radial-gradient(
+      340px circle at var(--mx, 50%) var(--my, 50%),
+      color-mix(in srgb, var(--spot, var(--color-accent)) 26%, transparent),
+      transparent 62%
+    );
+  }
+  @media (hover: hover) {
+    .spotlight:hover::before {
+      opacity: 1;
+    }
+  }
+
+  /* Haz que recorre el borde: marca la tarjeta más importante de la pantalla. */
+  .beam::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: 2;
+    padding: 1px;
+    border-radius: inherit;
+    pointer-events: none;
+    background: conic-gradient(
+      from var(--beam-angle),
+      transparent 0 58%,
+      color-mix(in srgb, var(--color-accent) 60%, transparent) 74%,
+      var(--color-accent-soft) 84%,
+      transparent 94%
+    );
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    -webkit-mask-composite: xor;
+    animation: beam-spin 7s linear infinite;
+  }
+
+  /* Brillo que cruza el botón al pasar el ratón (shimmer de magicui). */
+  .sheen {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .sheen::after {
+    content: "";
+    position: absolute;
+    top: -20%;
+    bottom: -20%;
+    left: -70%;
+    width: 45%;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(100deg, transparent, rgb(255 255 255 / 0.32), transparent);
+    transform: skewX(-18deg);
+    transition: left 620ms cubic-bezier(0.2, 0, 0, 1);
+  }
+  @media (hover: hover) {
+    .sheen:hover::after {
+      left: 130%;
+    }
+  }
+
+  /* Riel de color a la izquierda: clasifica avisos y filas sin depender solo
+     del color (cada uno lleva icono y texto). */
+  .rail {
+    position: relative;
+  }
+  .rail::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.7rem;
+    bottom: 0.7rem;
+    width: 3px;
+    border-radius: 999px;
+    background: var(--rail, var(--color-accent));
+    box-shadow: 0 0 16px color-mix(in srgb, var(--rail, var(--color-accent)) 70%, transparent);
+  }
+
+  /* Tejas de icono: --tone decide el color (luz, agua, renta, mora…). */
+  .tile {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    border-radius: 0.95rem;
+    border: 1px solid color-mix(in srgb, var(--tone, var(--color-accent)) 38%, transparent);
+    color: var(--tone, var(--color-accent));
+    background:
+      linear-gradient(
+        158deg,
+        color-mix(in srgb, var(--tone, var(--color-accent)) 34%, transparent),
+        color-mix(in srgb, var(--tone, var(--color-accent)) 8%, transparent)
+      );
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.12),
+      0 10px 22px -14px color-mix(in srgb, var(--tone, var(--color-accent)) 85%, transparent);
+  }
+
+  /* Halo suave detrás de las cifras grandes. */
+  .halo {
+    position: relative;
+  }
+  .halo::before {
+    content: "";
+    position: absolute;
+    inset: -18% -8%;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: 999px;
+    background: radial-gradient(
+      closest-side,
+      color-mix(in srgb, var(--color-accent) 30%, transparent),
+      transparent 78%
+    );
+    filter: blur(18px);
+  }
+
+  /* Cifras con gradiente (solo titulares grandes: mantiene contraste AA). */
+  .gradient-text {
+    background-image: linear-gradient(
+      104deg,
+      #ffe6cd 0%,
+      var(--color-accent-soft) 38%,
+      var(--color-accent) 74%,
+      #cf7045 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Números alineados: el contador animado no "baila" al cambiar de cifra. */
+  .num {
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /* Punto que respira: señala datos vivos (avisos, mes en curso). */
+  .pulse-dot {
+    position: relative;
+  }
+  .pulse-dot::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    opacity: 0.7;
+    animation: pulse-ring 2.6s cubic-bezier(0.2, 0, 0, 1) infinite;
+  }
+
+  /* Entrada al hacer scroll (la aplica <Reveal /> con IntersectionObserver). */
+  .reveal {
+    opacity: 0;
+    transform: translateY(16px) scale(0.99);
+    transition:
+      opacity 520ms cubic-bezier(0.2, 0, 0, 1),
+      transform 520ms cubic-bezier(0.2, 0, 0, 1);
+    transition-delay: calc(var(--i, 0) * 55ms);
+  }
+  .reveal.in {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Sustituto de la foto de una propiedad: degradado con el tono del estado. */
+  .photo-fallback {
+    background-image:
+      radial-gradient(
+        120% 120% at 20% 0%,
+        color-mix(in srgb, var(--tone, var(--color-accent)) 30%, transparent),
+        transparent 62%
+      ),
+      linear-gradient(160deg, var(--color-raised-2), var(--color-bg-deep));
+  }
+
+  /* Relleno de las barras de la mini-gráfica. */
+  .bar-fill {
+    background-image: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--tone, var(--color-accent)) 92%, #fff 8%),
+      color-mix(in srgb, var(--tone, var(--color-accent)) 42%, transparent)
+    );
+    box-shadow: 0 0 18px -6px color-mix(in srgb, var(--tone, var(--color-accent)) 80%, transparent);
+  }
+
+  /* Barras de la mini-gráfica: crecen al aparecer. */
+  .bar {
+    transform-origin: bottom;
+    animation: bar-grow 620ms cubic-bezier(0.2, 0, 0, 1) both;
+    animation-delay: calc(var(--i, 0) * 45ms);
+  }
+
+  /* Relleno de la barra de progreso (color por tono). */
+  .meter-fill {
+    background-image: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--tone, var(--color-accent)) 70%, transparent),
+      color-mix(in srgb, var(--tone, var(--color-accent)) 92%, #fff 8%)
+    );
+    box-shadow: 0 0 18px -4px color-mix(in srgb, var(--tone, var(--color-accent)) 85%, transparent);
+  }
+
+  /* Barra de progreso con brillo que la recorre. */
+  .meter > span {
+    position: relative;
+    overflow: hidden;
+  }
+  .meter > span::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.28) 50%, transparent 80%);
+    background-size: 200% 100%;
+    animation: shimmer 2.4s linear infinite;
   }
 }
 
@@ -261,6 +815,35 @@
   }
 }
 
+@keyframes beam-spin {
+  to {
+    --beam-angle: 360deg;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.75;
+  }
+  70%,
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0.04);
+    opacity: 0.3;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
 .rise {
   animation: rise 460ms cubic-bezier(0.2, 0, 0, 1) both;
 }
@@ -276,16 +859,31 @@
   }
 }
 
+/* Flotación lenta del dibujo en los estados vacíos. */
+.float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-7px) rotate(2deg);
+  }
+}
+
 /* ── Calendario ─────────────────────────────────────────────────────────── */
 
 .agenda .rdp-root {
   --rdp-accent-color: var(--color-accent);
-  --rdp-accent-background-color: #2a241f;
+  --rdp-accent-background-color: #2f2721;
   --rdp-day-height: 44px;
   --rdp-day-width: 44px;
   --rdp-day_button-height: 42px;
   --rdp-day_button-width: 42px;
-  --rdp-today-color: var(--color-accent);
+  --rdp-today-color: var(--color-accent-soft);
   --rdp-selected-border: 2px solid var(--color-accent);
   --rdp-weekday-opacity: 0.72;
   color: var(--color-fg);
@@ -296,10 +894,32 @@
   color: var(--color-muted);
   text-transform: capitalize;
 }
+.agenda .rdp-month_caption {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+}
 .agenda .rdp-button_next,
 .agenda .rdp-button_previous {
   color: var(--color-fg);
   border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-raised);
+  transition: background-color 180ms ease;
+}
+@media (hover: hover) {
+  .agenda .rdp-button_next:hover,
+  .agenda .rdp-button_previous:hover {
+    background: var(--color-raised-2);
+  }
+}
+.agenda .rdp-day_button {
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    scale 160ms ease-out;
+}
+.agenda .rdp-day_button:active {
+  scale: 0.94;
 }
 .agenda .day-mark .rdp-day_button {
   box-shadow: inset 0 -3px 0 var(--color-accent);
@@ -314,12 +934,31 @@
   .rise,
   .shake,
   .skeleton,
-  .aurora i {
+  .float,
+  .bar,
+  .aurora i,
+  .beam::after,
+  .pulse-dot::after,
+  .meter > span::after {
     animation: none;
+  }
+  /* Lo decorativo se apaga; la información (color, icono, texto) se queda. */
+  .beam::after,
+  .halo::before,
+  .pulse-dot::after {
+    opacity: 0;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
   .press,
   .lift,
+  .card-hover,
   .thumb,
+  .sheen::after,
+  .spotlight::before,
   .fade-edge {
     transition: none;
   }

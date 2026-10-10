@@ -2,7 +2,20 @@ import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { UserButton } from "@/lib/auth/gates";
-import { BellRing } from "lucide-react";
+import {
+  BadgeCheck,
+  BellRing,
+  CalendarClock,
+  Droplets,
+  FileSignature,
+  Smartphone,
+  TriangleAlert,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
+import { AlertCard } from "@/components/alert-card";
+import { Reveal } from "@/components/reveal";
+import { Badge, Card, IconTile, SectionTitle } from "@/components/surface";
 import {
   CONTRATO_AVISO_DIAS,
   RENTA_AVISO_DIAS,
@@ -15,6 +28,7 @@ import {
 import { computeAlerts, upcomingDue } from "@/lib/rentals.logic";
 import { useRentals } from "@/lib/use-rentals";
 import { Button, Toggle } from "@/components/ui";
+import { toneStyle } from "@/lib/tones";
 
 export const Route = createFileRoute("/avisos")({ component: Avisos });
 
@@ -27,6 +41,43 @@ const STATE_HINT: Record<NotifState, string> = {
     "El navegador los bloqueó. Ábrelo desde la app instalada (en iPhone: Compartir → Agregar a inicio) y vuelve a intentar.",
   unsupported: "Este navegador no admite avisos. Aquí siguen apareciendo en pantalla.",
 };
+
+/** Reglas de aviso, con su icono y su color, explicadas de un vistazo. */
+const RULES = [
+  {
+    icon: CalendarClock,
+    tone: "accent" as const,
+    text:
+      RENTA_AVISO_DIAS === 1
+        ? "Un día antes de que toque la renta de cada propiedad, y el mismo día."
+        : `${RENTA_AVISO_DIAS} días antes de que toque la renta de cada propiedad, y el mismo día.`,
+  },
+  {
+    icon: TriangleAlert,
+    tone: "crimson" as const,
+    text: "Si ya pasó el día y no la marcaste como recibida, cuántos días lleva sin pagar.",
+  },
+  {
+    icon: FileSignature,
+    tone: "iris" as const,
+    text: `Desde ${CONTRATO_AVISO_DIAS} días antes de que venza el contrato, y cada día hasta que vence.`,
+  },
+  {
+    icon: TrendingUp,
+    tone: "amber" as const,
+    text: "Desde 30 días antes de que se cumpla un año de contrato, para el aumento de renta.",
+  },
+  {
+    icon: Zap,
+    tone: "amber" as const,
+    text: "Los días de pago de luz, con su monto, en la agenda.",
+  },
+  {
+    icon: Droplets,
+    tone: "azure" as const,
+    text: "Los días de agua y los feriados oficiales de México, también en la agenda.",
+  },
+];
 
 function Avisos() {
   const { portfolio, holidays } = useRentals();
@@ -87,11 +138,9 @@ function Avisos() {
 
   if (portfolio.isPending) {
     return (
-      <div className="mx-auto max-w-xl space-y-6" aria-busy="true" aria-live="polite">
-        <div className="space-y-2">
-          <div className="skeleton h-10 w-32" />
-          <div className="skeleton h-4 w-full" />
-        </div>
+      <div className="mx-auto max-w-2xl space-y-6" aria-busy="true" aria-live="polite">
+        <div className="skeleton h-16 w-full" />
+        <div className="skeleton h-56 w-full" />
         <div className="skeleton h-16 w-full" />
         <div className="space-y-2">
           <div className="skeleton h-16" />
@@ -102,35 +151,59 @@ function Avisos() {
   }
 
   return (
-    <div className="mx-auto max-w-xl space-y-6">
-      <header className="rise">
-        <h1 className="font-display text-4xl">Avisos</h1>
-        <p className="mt-2 text-sm text-muted">Esto es lo que la app te avisa:</p>
-        <ul className="mt-3 space-y-1 text-sm text-muted">
-          <li>
-            · {RENTA_AVISO_DIAS === 1 ? "Un día antes" : `${RENTA_AVISO_DIAS} días antes`} de que
-            toque la renta de cada departamento, y el mismo día.
-          </li>
-          <li>· Si ya pasó el día y no la marcaste como recibida, cuántos días lleva sin pagar.</li>
-          <li>
-            · Desde {CONTRATO_AVISO_DIAS} días antes de que venza el contrato, y cada día hasta que
-            vence.
-          </li>
-          <li>
-            · Desde 30 días antes de que se cumpla un año de contrato (para el aumento de renta).
-          </li>
-          <li>· Los días de pago de luz y agua, en la agenda.</li>
+    <div className="mx-auto max-w-2xl space-y-7">
+      <SectionTitle
+        eyebrow="Notificaciones"
+        title="Avisos"
+        detail="Esto es lo que la app te avisa, y cómo comprobar que sí suena."
+        icon={<BellRing size={18} aria-hidden />}
+        tone="amber"
+        action={
+          <Badge tone={state === "on" ? "sage" : state === "blocked" ? "crimson" : "muted"} dot>
+            {state === "on" ? "Activos" : state === "blocked" ? "Bloqueados" : "Apagados"}
+          </Badge>
+        }
+      />
+
+      <Card spotlight className="space-y-3 p-4 md:p-5">
+        <h2 className="font-display text-2xl text-fg">Qué te avisa</h2>
+        <ul className="space-y-2.5">
+          {RULES.map((rule) => {
+            const Icon = rule.icon;
+            return (
+              <li key={rule.text} className="flex items-start gap-3">
+                <IconTile tone={rule.tone} size={32} className="mt-0.5 rounded-lg">
+                  <Icon size={15} />
+                </IconTile>
+                <p className="min-w-0 text-sm text-muted">{rule.text}</p>
+              </li>
+            );
+          })}
         </ul>
-      </header>
+        <p className="well px-3 py-2 text-xs text-muted">
+          Los avisos del contrato empiezan {CONTRATO_AVISO_DIAS} días antes del vencimiento y los de
+          renta {RENTA_AVISO_DIAS === 1 ? "un día" : `${RENTA_AVISO_DIAS} días`} antes del día de
+          pago.
+        </p>
+      </Card>
+
       <Toggle
         checked={state === "on"}
         onCheckedChange={(value) => void toggle(value)}
         label="Notificaciones del teléfono"
         hint={STATE_HINT[state]}
+        tone={state === "on" ? "sage" : "amber"}
+        icon={
+          <span aria-hidden className="grid size-7 place-items-center rounded-lg bg-fg/6 text-muted">
+            <Smartphone size={14} />
+          </span>
+        }
       />
-      <div className="space-y-1">
+
+      <div className="space-y-2">
         <Button
           tone="quiet"
+          size="lg"
           className="w-full"
           onClick={() => void test()}
           disabled={testing || state !== "on"}
@@ -139,57 +212,99 @@ function Avisos() {
           {testing ? "Enviando…" : "Mandar un aviso de prueba"}
         </Button>
         {state === "on" ? null : (
-          <p className="text-xs text-muted">
+          <p className="text-center text-xs text-muted">
             Prende el interruptor de arriba para poder probarlos.
           </p>
         )}
       </div>
-      {alerts.length === 0 ? (
-        <p className="text-sm text-muted">Hoy no hay avisos pendientes.</p>
-      ) : (
-        <ul className="space-y-2" aria-label="Avisos pendientes">
-          {alerts.map((alert, index) => (
-            <li key={alert.key} className="rise" style={{ animationDelay: `${index * 60}ms` }}>
-              <Link
-                to="/depto/$id"
-                params={{ id: alert.apartmentId }}
-                className="press lift block rounded-xl border border-accent/40 bg-accent/10 px-4 py-3"
-              >
-                <p className="text-sm font-medium">{alert.title}</p>
-                <p className="text-sm text-muted">{alert.detail}</p>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+
+      <section className="space-y-3">
+        <SectionTitle
+          eyebrow="Para hoy"
+          title={alerts.length > 0 ? `${alerts.length} avisos pendientes` : "Sin avisos pendientes"}
+          icon={<TriangleAlert size={18} aria-hidden />}
+          tone={alerts.length > 0 ? "crimson" : "sage"}
+        />
+        {alerts.length === 0 ? (
+          <Card className="flex items-center gap-3 p-4" spotlight={false}>
+            <IconTile tone="sage" size={40}>
+              <BadgeCheck size={19} />
+            </IconTile>
+            <p className="text-sm text-muted">
+              Todo en orden: nadie debe renta y ningún contrato está por vencer.
+            </p>
+          </Card>
+        ) : (
+          <ul className="space-y-2" aria-label="Avisos pendientes">
+            {alerts.map((alert, index) => (
+              <li key={alert.key}>
+                <Reveal index={index % 8}>
+                  <AlertCard alert={alert} showKind />
+                </Reveal>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       {soon.length > 0 ? (
-        <section className="space-y-2">
-          <h2 className="font-display text-2xl">Esta semana</h2>
-          <ul className="space-y-2">
+        <section className="space-y-3">
+          <SectionTitle
+            eyebrow="Próximos 7 días"
+            title="Esta semana"
+            icon={<CalendarClock size={18} aria-hidden />}
+          />
+          <ul className="grid gap-2 sm:grid-cols-2">
             {soon.map((apt) => {
               const due = upcomingDue(apt.diaPago as number, data?.today ?? "");
               return (
-                <li key={apt.id} className="text-sm text-muted">
-                  {apt.nombre}: renta en {due.daysUntil} días
+                <li key={apt.id}>
+                  <Link
+                    to="/depto/$id"
+                    params={{ id: apt.id }}
+                    className="card card-hover spotlight press flex items-center justify-between gap-3 p-3"
+                    style={toneStyle("accent")}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium text-fg">{apt.nombre}</span>
+                      <span className="block truncate text-xs text-muted">
+                        {apt.inquilino || "Inquilino sin nombre"}
+                      </span>
+                    </span>
+                    <Badge tone="accent">en {due.daysUntil} días</Badge>
+                  </Link>
                 </li>
               );
             })}
           </ul>
         </section>
       ) : null}
-      <section className="space-y-3 rounded-xl border border-line p-4">
-        <h2 className="font-display text-2xl">Instalar en el teléfono</h2>
-        <p className="text-sm text-muted">
+
+      <Card hero beam spotlight={false} className="space-y-3 p-5">
+        <span aria-hidden className="card-glow">
+          <span className="absolute -top-16 -right-10 size-48 rounded-full bg-accent/20 blur-3xl" />
+        </span>
+        <div className="relative flex items-center gap-3">
+          <IconTile tone="accent" size={42}>
+            <Smartphone size={19} />
+          </IconTile>
+          <h2 className="font-display text-2xl text-fg">Instalar en el teléfono</h2>
+        </div>
+        <p className="relative text-sm text-muted">
           No es una página suelta: se instala como aplicación. En iPhone abre el instructivo, pulsa
           Compartir y elige Agregar a inicio. Instalada suena aunque no la tengas a la vista.
         </p>
-        <div className="flex flex-col gap-2">
-          <a href="/?install=1&platform=ios">
-            <Button className="w-full">Instalar en iPhone</Button>
+        <div className="relative flex flex-col gap-2 sm:flex-row">
+          <a href="/?install=1&platform=ios" className="flex-1">
+            <Button className="w-full" size="lg">
+              Instalar en iPhone
+            </Button>
           </a>
           {installEvent ? (
             <Button
               tone="quiet"
+              size="lg"
+              className="flex-1"
               onClick={() => {
                 void installEvent.prompt();
                 setInstallEvent(null);
@@ -199,10 +314,14 @@ function Avisos() {
             </Button>
           ) : null}
         </div>
-      </section>
-      <div className="space-y-3 border-t border-line pt-4">
+      </Card>
+
+      <div className="flex items-center justify-between gap-3 border-t border-line-soft pt-4">
         <UserButton />
-        <Link to="/privacidad" className="block text-sm text-muted">
+        <Link
+          to="/privacidad"
+          className="press text-sm text-muted underline-offset-4 hover:text-accent hover:underline"
+        >
           Privacidad
         </Link>
       </div>

@@ -55,7 +55,8 @@ function Avisos() {
         <h1 className="font-display text-4xl">Avisos</h1>
         <p className="mt-2 text-sm text-muted">
           Un día antes de la renta. Si ya pasó el día y no la marcaste como recibida, aquí verás cuántos días
-          lleva sin pagar. También desde 35 días antes de que venza el contrato.
+          lleva sin pagar. Desde 35 días antes de que venza el contrato, y desde 30 días antes de que se
+          cumpla un año.
         </p>
       </header>
       <Toggle

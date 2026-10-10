@@ -52,7 +52,7 @@ function Calendario() {
       <header>
         <h1 className="font-display text-4xl">Agenda</h1>
         <p className="mt-1 text-sm text-muted">
-          Rentas, luz, agua, ingresos, vencimientos y feriados de México.
+          Rentas, luz, agua, ingresos, años de contrato, vencimientos y feriados de México.
         </p>
       </header>
       <div className="agenda rounded-xl border border-line bg-raised p-3">

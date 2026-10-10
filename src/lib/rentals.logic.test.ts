@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   computeAlerts,
+  increaseDue,
   rentMora,
   rowsForMonth,
   type Apartment,
@@ -32,6 +33,7 @@ function apt(partial: Partial<Apartment> & Pick<Apartment, "id" | "nombre">): Ap
     depositoFecha: null,
     depositoEstado: null,
     depositoNota: "",
+    ultimoIncremento: null,
     ...partial,
   };
 }
@@ -109,6 +111,38 @@ describe("rowsForMonth", () => {
     });
     assert.equal(rows[0]?.inquilino, "Luis");
     assert.equal(rows[0]?.recibido, false);
+  });
+});
+
+describe("increaseDue", () => {
+  it("avisa dentro de los 30 días previos al aniversario", () => {
+    const due = increaseDue(
+      apt({ id: "1", nombre: "Roma", contratoInicio: "2025-10-15", ingreso: "2025-10-15" }),
+      "2026-10-09",
+    );
+    assert.equal(due?.date, "2026-10-15");
+    assert.equal(due?.daysUntil, 6);
+    assert.equal(due?.years, 1);
+  });
+
+  it("no avisa si falta mucho o si ya anotaste la renta nueva", () => {
+    assert.equal(
+      increaseDue(apt({ id: "1", nombre: "Roma", contratoInicio: "2026-01-05" }), "2026-10-09"),
+      null,
+    );
+    assert.equal(
+      increaseDue(
+        apt({
+          id: "1",
+          nombre: "Roma",
+          contratoInicio: "2025-10-15",
+          ingreso: "2025-10-15",
+          ultimoIncremento: "2026-10-01",
+        }),
+        "2026-10-09",
+      ),
+      null,
+    );
   });
 });
 

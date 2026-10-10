@@ -13,6 +13,7 @@ import {
   tenureLabel,
   type Apartment,
   type Receipt,
+  type RentAdjustment,
   type Tenancy,
 } from "@/lib/rentals.logic";
 
@@ -184,10 +185,26 @@ function estancias(apartment: Apartment, history: Tenancy[]): Cell[][] {
   return rows;
 }
 
+function incrementos(adjustments: RentAdjustment[]): Cell[][] {
+  const rows: Cell[][] = [[head("Desde"), head("Renta anterior"), head("Renta nueva")]];
+  if (adjustments.length === 0) {
+    rows.push([text("—"), text("Sin incrementos"), text("—")]);
+    return rows;
+  }
+  for (const row of adjustments) {
+    rows.push([
+      text(longDate(row.vigenteDesde)),
+      pesos(row.anteriorCentavos),
+      pesos(row.nuevoCentavos),
+    ]);
+  }
+  return rows;
+}
+
 export async function downloadApartmentExcel(id: string): Promise<void> {
   const result = await exportApartment({ data: id });
   if (!result.ok) throw new Error(result.error);
-  const { apartment, history, receipts, today } = result;
+  const { apartment, history, receipts, adjustments, today } = result;
   const book = await writeXlsxFile([
     {
       sheet: "Ficha",
@@ -211,6 +228,11 @@ export async function downloadApartmentExcel(id: string): Promise<void> {
         { width: 28 },
       ],
       data: estancias(apartment, history),
+    },
+    {
+      sheet: "Incrementos",
+      columns: [{ width: 22 }, { width: 18 }, { width: 18 }],
+      data: incrementos(adjustments),
     },
   ]);
   await book.toFile(fileName(apartment.nombre));

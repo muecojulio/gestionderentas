@@ -24,6 +24,7 @@ export type Apartment = {
   depositoFecha: string | null;
   depositoEstado: DepositoEstado | null;
   depositoNota: string;
+  ultimoIncremento: string | null;
 };
 
 export type Tenancy = {
@@ -85,7 +86,7 @@ export type ApartmentInput = {
 
 export type Alert = {
   key: string;
-  kind: "renta" | "contrato" | "mora";
+  kind: "renta" | "contrato" | "mora" | "incremento";
   apartmentId: string;
   title: string;
   detail: string;
@@ -126,6 +127,16 @@ export type MonthStay = {
   contratoInicio: string | null;
   diaPago: number | null;
 };
+
+export type RentAdjustment = {
+  id: string;
+  anteriorCentavos: number;
+  nuevoCentavos: number;
+  vigenteDesde: string;
+};
+
+export const INCREASE_BEFORE = 30;
+export const INCREASE_AFTER = 14;
 
 export type MonthTenancy = {
   apartmentId: string;
@@ -404,6 +415,71 @@ function clampDue(year: number, monthIndex: number, day: number): string {
   return `${year}-${m}-${dd}`;
 }
 
+export function addDays(iso: string, days: number): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(year, (month ?? 1) - 1, day ?? 1));
+  date.setUTCDate(date.getUTCDate() + days);
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+export type ContractYear = { date: string; daysUntil: number; years: number };
+
+/** Next contract anniversary, including one that happened in the last 14 days. */
+export function nextContractYear(
+  apt: Pick<Apartment, "ocupado" | "contratoInicio" | "ingreso">,
+  todayIso: string,
+): ContractYear | null {
+  if (!apt.ocupado) return null;
+  const start = apt.contratoInicio ?? apt.ingreso;
+  if (!start || !ISO.test(start) || start > todayIso) return null;
+  const startYear = Number(start.slice(0, 4));
+  const todayYear = Number(todayIso.slice(0, 4));
+  const monthIndex = Number(start.slice(5, 7)) - 1;
+  const day = Number(start.slice(8, 10));
+  const options: ContractYear[] = [];
+  for (let year = startYear + 1; year <= todayYear + 1; year += 1) {
+    const date = clampDue(year, monthIndex, day);
+    if (date <= start) continue;
+    options.push({
+      date,
+      daysUntil: daysBetween(todayIso, date),
+      years: year - startYear,
+    });
+  }
+  return options.find((item) => item.daysUntil >= -INCREASE_AFTER) ?? null;
+}
+
+export function increaseDue(
+  apt: Pick<
+    Apartment,
+    "ocupado" | "contratoInicio" | "ingreso" | "contratoFin" | "rentaCentavos" | "ultimoIncremento"
+  >,
+  todayIso: string,
+): ContractYear | null {
+  if (apt.rentaCentavos == null) return null;
+  const next = nextContractYear(apt, todayIso);
+  if (!next) return null;
+  if (next.daysUntil > INCREASE_BEFORE || next.daysUntil < -INCREASE_AFTER) return null;
+  if (apt.contratoFin && apt.contratoFin < next.date) return null;
+  if (apt.ultimoIncremento) {
+    const from = addDays(next.date, -INCREASE_BEFORE);
+    const until = addDays(next.date, INCREASE_AFTER);
+    if (apt.ultimoIncremento >= from && apt.ultimoIncremento <= until) return null;
+  }
+  return next;
+}
+
+export function isContractAnniversary(startIso: string | null, iso: string): boolean {
+  if (!startIso || !ISO.test(startIso) || iso <= startIso) return false;
+  const year = Number(iso.slice(0, 4));
+  const monthIndex = Number(startIso.slice(5, 7)) - 1;
+  const day = Number(startIso.slice(8, 10));
+  return clampDue(year, monthIndex, day) === iso && year > Number(startIso.slice(0, 4));
+}
+
 export function upcomingDue(
   day: number,
   todayIso: string,
@@ -473,6 +549,24 @@ export function computeAlerts(
               : `Faltan ${left} ${left === 1 ? "día" : "días"} · vence el ${longDate(apt.contratoFin)}`,
         });
       }
+    }
+    const yearDue = increaseDue(apt, todayIso);
+    if (yearDue) {
+      const when =
+        yearDue.daysUntil > 1
+          ? `En ${diasTexto(yearDue.daysUntil)} se cumple el año de ${apt.nombre}`
+          : yearDue.daysUntil === 1
+            ? `Mañana se cumple el año de ${apt.nombre}`
+            : yearDue.daysUntil === 0
+              ? `Hoy se cumple el año de ${apt.nombre}`
+              : `Hace ${diasTexto(-yearDue.daysUntil)} se cumplió el año de ${apt.nombre}`;
+      alerts.push({
+        key: `incremento:${apt.id}:${yearDue.date}`,
+        kind: "incremento",
+        apartmentId: apt.id,
+        title: when,
+        detail: `Renta actual ${formatMoney(apt.rentaCentavos)} · anota la nueva en la ficha`,
+      });
     }
   }
   return alerts;
@@ -544,6 +638,16 @@ export function agendaOn(
         apartmentId: apt.id,
         title: `Vence contrato · ${apt.nombre}`,
         detail: apt.inquilino || "Inquilino",
+      });
+    }
+    const start = apt.contratoInicio ?? apt.ingreso;
+    if (apt.ocupado && isContractAnniversary(start, iso)) {
+      const years = Number(iso.slice(0, 4)) - Number((start ?? iso).slice(0, 4));
+      items.push({
+        id: `an-${apt.id}`,
+        apartmentId: apt.id,
+        title: `Año de contrato · ${apt.nombre}`,
+        detail: `${years} ${years === 1 ? "año" : "años"} · renta ${formatMoney(apt.rentaCentavos)}`,
       });
     }
   }

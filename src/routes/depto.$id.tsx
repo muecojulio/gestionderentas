@@ -1,12 +1,24 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApartmentForm } from "@/components/apartment-form";
-import { Button, ConfirmDialog } from "@/components/ui";
+import { Button, ConfirmDialog, Field, TextInput } from "@/components/ui";
 import { downloadApartmentExcel } from "@/lib/excel-apartment";
-import { deleteApartment, listHistory, saveApartment, vacateApartment } from "@/lib/rentals.functions";
-import { DEPOSITO_LABEL, formatMoney, longDate, tenureLabel, type ApartmentInput } from "@/lib/rentals.logic";
+import { applyIncrease, deleteApartment, listAdjustments, listHistory, saveApartment, vacateApartment } from "@/lib/rentals.functions";
+import {
+  DEPOSITO_LABEL,
+  diasTexto,
+  formatMoney,
+  increaseDue,
+  longDate,
+  nextContractYear,
+  pesosToCentavos,
+  tenureLabel,
+  type Apartment,
+  type ApartmentInput,
+  type RentAdjustment,
+} from "@/lib/rentals.logic";
 import { useRefreshRentals, useRentals } from "@/lib/use-rentals";
 
 export const Route = createFileRoute("/depto/$id")({ component: Detail });
@@ -179,6 +191,8 @@ function Detail() {
             )}
           </section>
 
+          {apt.ocupado ? <IncreaseCard apt={apt} today={today} /> : null}
+
           {history.data && history.data.length > 0 ? (
             <section className="space-y-2">
               <h2 className="font-display text-2xl">Estancias anteriores</h2>
@@ -260,5 +274,103 @@ function Row({ label, value }: { label: string; value: string }) {
       <span className="text-muted">{label}</span>
       <span className="text-right">{value}</span>
     </div>
+  );
+}
+
+function IncreaseCard({ apt, today }: { apt: Apartment; today: string }) {
+  const refresh = useRefreshRentals();
+  const adjustments = useQuery({
+    queryKey: ["adjustments", apt.id],
+    queryFn: () => listAdjustments({ data: apt.id }),
+  });
+  const next = nextContractYear(apt, today);
+  const due = increaseDue(apt, today);
+  const [monto, setMonto] = useState("");
+  const [fecha, setFecha] = useState(due && due.daysUntil <= 0 ? due.date : today);
+  const [pending, setPending] = useState(false);
+  const start = apt.ingreso ?? apt.contratoInicio;
+  const mine = (adjustments.data ?? []).filter((row) => !start || row.vigenteDesde >= start);
+  const endsFirst = Boolean(next && apt.contratoFin && apt.contratoFin < next.date);
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    const centavos = pesosToCentavos(monto);
+    if (centavos == null) {
+      toast.error("Revisa el monto de la nueva renta.");
+      return;
+    }
+    setPending(true);
+    try {
+      const result = await applyIncrease({
+        data: { apartmentId: apt.id, nuevoCentavos: centavos, vigenteDesde: fecha || today },
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      setMonto("");
+      refresh();
+      toast.success("Renta actualizada");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo guardar.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  const headline = !next
+    ? "Agrega el inicio del contrato o del ingreso para avisar cuando cumpla el año."
+    : endsFirst
+      ? `Este contrato vence el ${longDate(apt.contratoFin ?? "")}, antes de cumplir el año.`
+      : due
+        ? due.daysUntil > 0
+          ? `En ${diasTexto(due.daysUntil)} cumple ${due.years} ${due.years === 1 ? "año" : "años"}.`
+          : due.daysUntil === 0
+            ? `Hoy cumple ${due.years} ${due.years === 1 ? "año" : "años"}.`
+            : `Hace ${diasTexto(-due.daysUntil)} cumplió ${due.years} ${due.years === 1 ? "año" : "años"}.`
+        : `El siguiente año es el ${longDate(next.date)}.`;
+
+  return (
+    <section
+      className={
+        due
+          ? "space-y-3 rounded-xl border border-accent/40 bg-accent/10 p-4"
+          : "space-y-3 rounded-xl border border-line bg-raised p-4"
+      }
+    >
+      <h2 className="font-display text-2xl">Año de contrato</h2>
+      <p className="text-sm text-muted">{headline}</p>
+      <Row label="Renta actual" value={formatMoney(apt.rentaCentavos)} />
+      {due ? (
+        <form className="space-y-3" onSubmit={(event) => void save(event)}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Nueva renta" hint="Pesos">
+              <TextInput
+                inputMode="decimal"
+                value={monto}
+                onChange={(event) => setMonto(event.target.value)}
+                placeholder="13000"
+                required
+              />
+            </Field>
+            <Field label="Desde" hint="Los cobros ya anotados no cambian">
+              <TextInput type="date" value={fecha} onChange={(event) => setFecha(event.target.value)} required />
+            </Field>
+          </div>
+          <Button type="submit" disabled={pending}>
+            {pending ? "Guardando…" : "Guardar nueva renta"}
+          </Button>
+        </form>
+      ) : null}
+      {mine.length > 0 ? (
+        <ul className="space-y-1">
+          {mine.map((row: RentAdjustment) => (
+            <li key={row.id} className="text-sm text-muted">
+              {longDate(row.vigenteDesde)} · {formatMoney(row.anteriorCentavos)} → {formatMoney(row.nuevoCentavos)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
   );
 }

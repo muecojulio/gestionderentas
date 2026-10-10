@@ -8,7 +8,7 @@ function Privacidad() {
       <p className="text-sm text-muted">Gestión de rentas</p>
       <h1 className="font-display text-4xl">Privacidad</h1>
       <p className="text-sm text-muted">
-        Esta aplicación guarda departamentos, fotos, medidores, rentas, depósitos, contratos y la lista de
+        Esta aplicación guarda departamentos, fotos, medidores, rentas, depósitos, incrementos, contratos y la lista de
         personas a las que no volverías a rentar. Esos datos pertenecen a tu cuenta y no se muestran a otros
         usuarios. El Excel se arma en tu teléfono y no se envía a ningún otro servicio.
       </p>

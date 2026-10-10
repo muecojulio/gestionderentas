@@ -35,5 +35,6 @@ export function useRefreshRentals() {
     void qc.invalidateQueries({ queryKey: ["blacklist"] });
     void qc.invalidateQueries({ queryKey: ["history"] });
     void qc.invalidateQueries({ queryKey: ["month"] });
+    void qc.invalidateQueries({ queryKey: ["adjustments"] });
   };
 }

@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { promisify } from "node:util";
 import {
   APP_ENV_REL_PATH,
+  appEnvForRun,
   mergeAppEnv,
   parseAppEnv,
   projectRoot,
@@ -125,4 +126,22 @@ test("the CLI still runs when invoked through a symlinked path", async () => {
     PRINT_FLAG,
   ]);
   assert.equal(stdout, "false");
+});
+
+test("a Vercel build ignores the workspace app-env file", () => {
+  // The workspace file ships auth off; a deployed build must not inherit it.
+  const root = makeWorkspace('{"VITE_AUTH_ENABLED":"false"}');
+  assert.deepEqual(appEnvForRun(root, { VERCEL: "1" }), {});
+  assert.deepEqual(appEnvForRun(root, {}), { VITE_AUTH_ENABLED: "false" });
+});
+
+test("the wrapper leaves the flag to the Vercel project env", async () => {
+  const env = { ...process.env, VERCEL: "1" };
+  delete env.VITE_AUTH_ENABLED;
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [WRAPPER, process.execPath, "-e", PRINT_FLAG],
+    { env },
+  );
+  assert.equal(stdout, "undefined");
 });

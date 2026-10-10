@@ -82,6 +82,19 @@ export function exitStatusFromChild(code, signal) {
   return code ?? 1;
 }
 
+/**
+ * The app env the wrapper applies to this run. Vercel sets `VERCEL` on its
+ * builds and functions, and such a build is deployed: the workspace file does
+ * not govern it. Without this, `.grok/app-env.json` inlines
+ * `VITE_AUTH_ENABLED=false` into the client bundle while the server (which reads
+ * the flag at runtime) still requires a session, so every data call fails.
+ * Set `VITE_AUTH_ENABLED` in the Vercel project env to choose the flag instead.
+ */
+export function appEnvForRun(root, processEnv = process.env) {
+  if (processEnv.VERCEL) return {};
+  return readAppEnv(root);
+}
+
 /** The workspace root (this file lives in `<root>/scripts/`). */
 export function projectRoot() {
   return dirname(dirname(fileURLToPath(import.meta.url)));
@@ -110,7 +123,7 @@ function main(argv) {
     console.error("usage: node scripts/with-app-env.mjs <command> [args…]");
     process.exit(2);
   }
-  const env = mergeAppEnv(readAppEnv(projectRoot()), process.env);
+  const env = mergeAppEnv(appEnvForRun(projectRoot()), process.env);
   const child = spawn(command, args, { stdio: "inherit", env });
   // The dev server is long-running and is stopped by signalling this wrapper.
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {

@@ -15,7 +15,7 @@ export function SignedIn({ children }: { children: ReactNode }) {
 }
 
 /** Nunca renderiza nada: nunca se está "fuera" de sesión. */
-export function SignedOut({ children }: { children: ReactNode }) {
+export function SignedOut(_: { children: ReactNode }) {
   return null;
 }
 

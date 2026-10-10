@@ -150,6 +150,9 @@ export default defineConfig(({ command, isPreview }) => ({
     host: "0.0.0.0",
     port: 8080,
     strictPort: true,
+    // La vista previa se sirve bajo un subdominio del entorno; sin esto Vite
+    // responde 403 "Blocked request. This host is not allowed".
+    allowedHosts: [".e2b.app"],
   },
   preview: {
     host: "127.0.0.1",

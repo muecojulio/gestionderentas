@@ -23,7 +23,7 @@
  * `compareAuthInvariant()` rather than re-deriving it.
  */
 import { APP_ENV_ROUTE } from "./app-env-plugin.mjs";
-import { isMainModule, mergeAppEnv, projectRoot, readAppEnv } from "./with-app-env.mjs";
+import { appEnvForRun, isMainModule, mergeAppEnv, projectRoot } from "./with-app-env.mjs";
 
 const DEFAULT_DEV_URL = "http://127.0.0.1:8080";
 
@@ -85,7 +85,7 @@ export function authInvariantWarnings(result) {
 
 /** What `vite build` / `vite preview` will resolve, via the same wrapper. */
 export function buildAuthEnabled(root = projectRoot(), processEnv = process.env) {
-  const env = mergeAppEnv(readAppEnv(root), processEnv);
+  const env = mergeAppEnv(appEnvForRun(root, processEnv), processEnv);
   return authEnabledFromEnvValue(env.VITE_AUTH_ENABLED);
 }
 

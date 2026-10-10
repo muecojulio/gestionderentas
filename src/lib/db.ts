@@ -19,6 +19,18 @@ const databaseUrl =
 export const dbSource: DbSource = databaseUrl ? "neon" : "pglite";
 
 /**
+ * Vercel sets `VERCEL` on its builds and functions. A deployed function with no
+ * `DATABASE_URL` cannot use the PGLite fallback: the WASM data file
+ * (`pglite.data`) is not part of the serverless bundle, so the bootstrap fails
+ * and takes the whole function down. Data must live in Postgres (Neon) there, so
+ * we fail each request with a clear message instead of crashing the process.
+ */
+const deployedWithoutDatabase = !databaseUrl && Boolean(process.env.VERCEL);
+
+/** The embedded PGLite fallback is usable here (local dev, preview builds). */
+const pgliteFallbackUsable = dbSource === "pglite" && !deployedWithoutDatabase;
+
+/**
  * Minimal shared SQL surface, satisfied by both Neon and PGLite. Both the
  * tagged-template and `.query()` forms resolve to an array of row objects:
  *
@@ -176,6 +188,12 @@ async function createSql(): Promise<Sql> {
         "or a server route loader, never from client code.",
     );
   }
+  if (deployedWithoutDatabase) {
+    throw new Error(
+      "DATABASE_URL no está configurada en Vercel. Agrega la cadena de conexión de " +
+        "Postgres (Neon) en Project Settings → Environment Variables y vuelve a desplegar.",
+    );
+  }
   return dbSource === "neon" ? createNeonSql() : createPgliteSql();
 }
 
@@ -220,7 +238,9 @@ export async function getPglite(): Promise<import("@electric-sql/pglite").PGlite
  * module kick it off immediately (see bottom of file).
  */
 export function ensureDbReady(): Promise<void> {
-  if (dbSource !== "pglite") return Promise.resolve();
+  // Neon: lazy pool. Deployed without a database: nothing to boot here — each
+  // `getSql()` reports the missing DATABASE_URL on its own request.
+  if (!pgliteFallbackUsable) return Promise.resolve();
   return getSql().then(() => undefined);
 }
 
@@ -229,10 +249,12 @@ export function ensureDbReady(): Promise<void> {
 const globalBoot = globalThis as typeof globalThis & {
   __pgBootstrapPromise__?: Promise<void>;
 };
-if (typeof window === "undefined" && dbSource === "pglite") {
+if (typeof window === "undefined" && pgliteFallbackUsable) {
+  // Log, don't rethrow: a rethrow here is an unhandled rejection that kills the
+  // Node process. Callers that need the database still get the error from
+  // `getSql()`, which clears its memo so the next request retries.
   globalBoot.__pgBootstrapPromise__ ??= ensureDbReady().catch((err) => {
     globalBoot.__pgBootstrapPromise__ = undefined;
     console.error("[db] PGLite bootstrap failed:", err);
-    throw err;
   });
 }

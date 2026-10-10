@@ -14,7 +14,7 @@ import {
   listHistory,
   saveApartment,
   vacateApartment,
-} from "@/lib/rentals.functions";
+} from "@/lib/rentals.api";
 import {
   DEPOSITO_LABEL,
   diasTexto,
@@ -33,6 +33,9 @@ import { useRefreshRentals, useRentals } from "@/lib/use-rentals";
 
 export const Route = createFileRoute("/depto/$id")({ component: Detail });
 
+/** Los datos se cargan en el navegador (ver `use-rentals`). */
+const browserOnly = typeof window !== "undefined";
+
 function Detail() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
@@ -40,7 +43,9 @@ function Detail() {
   const { portfolio } = useRentals();
   const history = useQuery({
     queryKey: ["history", id],
-    queryFn: () => listHistory({ data: id }),
+    queryFn: () => listHistory(id),
+    // Igual que el resto de los datos: se pide desde el navegador.
+    enabled: browserOnly,
   });
   const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState(false);
@@ -77,7 +82,7 @@ function Detail() {
   async function onSubmit(value: ApartmentInput) {
     setPending(true);
     try {
-      const result = await saveApartment({ data: value });
+      const result = await saveApartment(value);
       if (!result.ok) {
         if ("code" in result && result.code === "blacklist") setWarning(result.error);
         else toast.error(result.error);
@@ -97,7 +102,7 @@ function Detail() {
   async function vacate() {
     setPending(true);
     try {
-      const result = await vacateApartment({ data: id });
+      const result = await vacateApartment(id);
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -115,7 +120,7 @@ function Detail() {
   async function remove() {
     setPending(true);
     try {
-      const result = await deleteApartment({ data: id });
+      const result = await deleteApartment(id);
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -353,7 +358,8 @@ function IncreaseCard({ apt, today }: { apt: Apartment; today: string }) {
   const refresh = useRefreshRentals();
   const adjustments = useQuery({
     queryKey: ["adjustments", apt.id],
-    queryFn: () => listAdjustments({ data: apt.id }),
+    queryFn: () => listAdjustments(apt.id),
+    enabled: browserOnly,
   });
   const save = useActionStatus();
   const next = nextContractYear(apt, today);
@@ -374,7 +380,9 @@ function IncreaseCard({ apt, today }: { apt: Apartment; today: string }) {
     await save.run(async () => {
       try {
         const result = await applyIncrease({
-          data: { apartmentId: apt.id, nuevoCentavos: centavos, vigenteDesde: fecha || today },
+          apartmentId: apt.id,
+          nuevoCentavos: centavos,
+          vigenteDesde: fecha || today,
         });
         if (!result.ok) {
           toast.error(result.error);

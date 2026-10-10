@@ -31,6 +31,47 @@ const deployedWithoutDatabase = !databaseUrl && Boolean(process.env.VERCEL);
 const pgliteFallbackUsable = dbSource === "pglite" && !deployedWithoutDatabase;
 
 /**
+ * La base de datos no está disponible (falta `DATABASE_URL`, no se puede
+ * conectar o el esquema no existe). Se lanza como error propio para que cada
+ * capa pueda distinguirla de un fallo de red o de un error de la app.
+ */
+export class DbUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DbUnavailableError";
+  }
+}
+
+/** Motivo legible de cualquier error (sin volcar el stack al navegador). */
+function errText(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return typeof err === "string" ? err : "Error desconocido.";
+}
+
+/**
+ * Estado de la base de datos, tal como lo ve el servidor. El cliente lo usa
+ * para decidir si puede confiar en los datos del servidor o si debe trabajar
+ * con el respaldo local del navegador.
+ */
+export type DbStatus = {
+  available: boolean;
+  source: DbSource | "none";
+  /** `false` cuando la conexión responde pero faltan las tablas de la app. */
+  schemaReady: boolean;
+  reason?: string;
+};
+
+/**
+ * `migrations/*.sql` incrustadas en el bundle por el bundler (sin leer el
+ * sistema de archivos en tiempo de ejecución, que en Vercel no existe).
+ */
+const migrationFiles = import.meta.glob("/migrations/*.sql", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
+/**
  * Minimal shared SQL surface, satisfied by both Neon and PGLite. Both the
  * tagged-template and `.query()` forms resolve to an array of row objects:
  *
@@ -47,6 +88,10 @@ export interface Sql {
     text: string,
     params?: unknown[],
   ): Promise<T[]>;
+  /** Ejecuta `fn` en una única transacción (un solo cliente/conexión). */
+  transaction<T>(fn: (sql: Sql) => Promise<T>): Promise<T>;
+  /** Varias sentencias de una vez (solo para SQL propio: las migraciones). */
+  exec(text: string): Promise<void>;
 }
 
 /**
@@ -79,10 +124,12 @@ const OID_DATE = 1082;
 const OID_INTERVAL = 1186;
 const identity = (v: string) => v;
 
-type Run = <T>(text: string, params: unknown[]) => Promise<T[]>;
+type Run = <T>(text: string, params?: unknown[]) => Promise<T[]>;
+type Tx = <T>(fn: (sql: Sql) => Promise<T>) => Promise<T>;
+type Exec = (text: string) => Promise<void>;
 
 /** Wrap a query runner in the tagged-template + `.query()` `Sql` surface. */
-function toSql(run: Run): Sql {
+function toSql(run: Run, exec: Exec, tx: Tx): Sql {
   const sql = (async <T = Record<string, unknown>>(
     strings: TemplateStringsArray,
     ...values: unknown[]
@@ -92,9 +139,63 @@ function toSql(run: Run): Sql {
     for (let i = 0; i < values.length; i += 1) text += `$${i + 1}${strings[i + 1]}`;
     return run<T>(text, values);
   }) as unknown as Sql;
-  sql.query = <T = Record<string, unknown>>(text: string, params: unknown[] = []) =>
+  // `params` se reenvía tal cual: sin parámetros el driver usa el protocolo
+  // simple, que es lo que permite ejecutar un archivo .sql con varias
+  // sentencias (necesario para las migraciones).
+  sql.query = <T = Record<string, unknown>>(text: string, params?: unknown[]) =>
     run<T>(text, params);
+  sql.exec = exec;
+  sql.transaction = tx;
   return sql;
+}
+
+/**
+ * Aplica las migraciones pendientes de `migrations/*.sql` (la única fuente del
+ * esquema) y las anota en `_migrations`. Idempotente: se puede llamar en cada
+ * arranque, en el preview (PGlite) y en producción (Neon), así una base ya
+ * creada sigue al día aunque el migrador del build no haya corrido.
+ */
+async function applyPendingMigrations(sql: Sql): Promise<void> {
+  if (Object.keys(migrationFiles).length === 0) return;
+  await sql.query(
+    "create table if not exists _migrations (name text primary key, applied_at timestamptz not null default now())",
+  );
+  const doneRows = await sql.query<{ name: string }>("select name from _migrations");
+  const pending = pendingMigrations(
+    Object.keys(migrationFiles),
+    doneRows.map((row) => row.name),
+  );
+  for (const { name, path } of pending) {
+    // Cada archivo se aplica y se anota junto: si falla a medias, la siguiente
+    // ejecución lo reintenta. `on conflict` evita que dos instancias serverless
+    // que arrancan a la vez se bloqueen entre sí.
+    await sql.transaction(async (tx) => {
+      await tx.exec(migrationFiles[path]);
+      await tx.query(
+        "insert into _migrations (name) values ($1) on conflict (name) do nothing",
+        [name],
+      );
+    });
+  }
+}
+
+/**
+ * Neon solo acepta conexiones cifradas. Si la cadena de conexión no trae
+ * `sslmode`, `pg` intenta conectar en claro y el servidor rechaza la conexión
+ * (y con ella, todas las consultas). Se activa SSL solo en ese caso: si la URL
+ * ya define `sslmode`/`ssl`, manda la URL y nada cambia.
+ */
+function sslOption(): { ssl: Record<string, unknown> } | Record<string, never> {
+  if (!databaseUrl) return {};
+  try {
+    const url = new URL(databaseUrl);
+    const neonHost = /(^|\.)neon\.tech$/i.test(url.hostname);
+    if (!neonHost) return {};
+    if (url.searchParams.has("sslmode") || url.searchParams.has("ssl")) return {};
+    return { ssl: { rejectUnauthorized: true } };
+  } catch {
+    return {};
+  }
 }
 
 function createNeonSql(): Promise<Sql> {
@@ -105,11 +206,43 @@ function createNeonSql(): Promise<Sql> {
     types.setTypeParser(OID_INT8, Number);
     types.setTypeParser(OID_DATE, identity);
     types.setTypeParser(OID_INTERVAL, identity);
-    const pool = new Pool({ connectionString: databaseUrl });
-    return toSql(async <T>(text: string, params: unknown[]) => {
-      const res = await pool.query(text, params);
-      return res.rows as T[];
-    });
+    const pool = new Pool({ connectionString: databaseUrl, max: 3, ...sslOption() });
+    const one = (
+      run: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }>,
+    ): Sql =>
+      toSql(
+        async <R>(text: string, params?: unknown[]) =>
+          (await run(text, params)).rows as R[],
+        async (text) => {
+          await run(text);
+        },
+        async <R>(fn: (sql: Sql) => Promise<R>): Promise<R> => {
+          // Una transacción necesita SIEMPRE el mismo cliente: `pool.query`
+          // toma uno distinto en cada llamada y partiría el BEGIN/COMMIT.
+          const client = await pool.connect();
+          try {
+            await client.query("begin");
+            const out = await fn(one(async (t, p) => await client.query(t, p as unknown[])));
+            await client.query("commit");
+            return out;
+          } catch (err) {
+            try {
+              await client.query("rollback");
+            } catch {
+              // ROLLBACK falla si la conexión se cayó: conserva el error real.
+            }
+            throw err;
+          } finally {
+            client.release();
+          }
+        },
+      );
+    const sql = one(async (text, params) => await pool.query(text, params as unknown[]));
+    // El esquema se aplica aquí además de en el build: si el migrador de
+    // `npm run build` se saltó (p. ej. sin DATABASE_URL en tiempo de build), la
+    // primer petición deja la base al día en vez de fallar para siempre.
+    await applyPendingMigrations(sql);
+    return sql;
   })().catch((err) => {
     globalRef.__pgSqlPromise__ = undefined;
     throw err;
@@ -141,31 +274,42 @@ async function createPgliteSql(): Promise<Sql> {
   });
   const pg = await globalRef.__pgliteInstance__;
 
-  // Apply migrations/ (the single schema source) so preview matches production.
-  // SQL is inlined by the bundler via import.meta.glob (no runtime fs); applied
-  // files are tracked in _migrations. The glob does not descend, so the opt-in
-  // auth schema under migrations/auth/ stays out. Runs once per module instance
-  // — so an HMR reload after adding a migration file applies it live — with
-  // passes serialized on a global chain so concurrent callers never
-  // double-apply.
-  const migrate = async (): Promise<void> => {
-    const migrations = import.meta.glob("/migrations/*.sql", {
-      query: "?raw",
-      import: "default",
-      eager: true,
-    }) as Record<string, string>;
-    const doneRows = await pg.query<{ name: string }>(
-      "select name from _migrations",
+  /** Superficie `Sql` de una transacción de PGlite (`tx.query` / `tx.exec`). */
+  const txSql = (tx: import("@electric-sql/pglite").Transaction): Sql =>
+    toSql(
+      async <T>(text: string, params?: unknown[]) => {
+        const result = await tx.query<T>(text, params);
+        return result.rows;
+      },
+      async (text: string) => {
+        await tx.exec(text);
+      },
+      async () => {
+        throw new Error("PGlite no soporta transacciones anidadas.");
+      },
     );
-    const done = doneRows.rows.map((r) => r.name);
-    for (const { name, path } of pendingMigrations(Object.keys(migrations), done)) {
-      // Apply + record atomically (parity with scripts/migrate.mjs) so a failed
-      // statement can't leave a file half-applied but untracked.
-      await pg.transaction(async (tx) => {
-        await tx.exec(migrations[path]);
-        await tx.query("insert into _migrations (name) values ($1)", [name]);
-      });
-    }
+
+  const sql = toSql(
+    async <T>(text: string, params?: unknown[]) => {
+      const result = await pg.query<T>(text, params);
+      return result.rows;
+    },
+    async (text: string) => {
+      await pg.exec(text);
+    },
+    async <T>(fn: (tx: Sql) => Promise<T>): Promise<T> =>
+      pg.transaction(async (tx) => fn(txSql(tx))),
+  );
+
+  // El esquema sale de `migrations/*.sql` (misma fuente que producción): el SQL
+  // va incrustado en el bundle con import.meta.glob, sin leer archivos en
+  // tiempo de ejecución, y los archivos aplicados quedan en `_migrations`. El
+  // glob no baja a subcarpetas, así que el esquema de auth queda fuera. Corre
+  // una vez por instancia del módulo (un recargado por HMR aplica lo nuevo) con
+  // las pasadas serializadas en una cadena global para que dos llamadas a la vez
+  // nunca lo apliquen dos veces.
+  const migrate = async (): Promise<void> => {
+    await applyPendingMigrations(sql);
   };
   const pass = (globalRef.__pgliteMigrateChain__ ?? Promise.resolve())
     .catch(() => undefined) // an earlier failed pass must not wedge the chain
@@ -173,10 +317,7 @@ async function createPgliteSql(): Promise<Sql> {
   globalRef.__pgliteMigrateChain__ = pass;
   await pass;
 
-  return toSql(async <T>(text: string, params: unknown[]) => {
-    const result = await pg.query<T>(text, params);
-    return result.rows;
-  });
+  return sql;
 }
 
 let sqlPromise: Promise<Sql> | null = null;
@@ -189,12 +330,60 @@ async function createSql(): Promise<Sql> {
     );
   }
   if (deployedWithoutDatabase) {
-    throw new Error(
+    throw new DbUnavailableError(
       "DATABASE_URL no está configurada en Vercel. Agrega la cadena de conexión de " +
         "Postgres (Neon) en Project Settings → Environment Variables y vuelve a desplegar.",
     );
   }
   return dbSource === "neon" ? createNeonSql() : createPgliteSql();
+}
+
+let dbStatusPromise: Promise<DbStatus> | null = null;
+
+/** Estado real de la base: se conecta y comprueba que el esquema exista. */
+async function probeDatabase(): Promise<DbStatus> {
+  if (deployedWithoutDatabase) {
+    return {
+      available: false,
+      source: "none",
+      schemaReady: false,
+      reason:
+        "Falta DATABASE_URL en el proyecto desplegado. La app usa el respaldo de este dispositivo.",
+    };
+  }
+  const sql = await getSql();
+  const rows = await sql<{ ok: boolean }>`select to_regclass('public.apartments') is not null as ok`;
+  const schemaReady = rows[0]?.ok !== false;
+  if (!schemaReady) {
+    return {
+      available: false,
+      source: dbSource,
+      schemaReady: false,
+      reason: "La base de datos no tiene las tablas de la app (migraciones pendientes).",
+    };
+  }
+  return { available: true, source: dbSource, schemaReady: true };
+}
+
+/**
+ * ¿Se puede usar la base de datos ahora mismo? Nunca lanza: devuelve
+ * `available: false` con el motivo. El cliente lo consulta una vez por sesión
+ * para saber si los datos viven en el servidor o en este dispositivo.
+ *
+ * Un resultado negativo NO se memoiza: si la base vuelve, la siguiente
+ * consulta lo detecta sin reiniciar nada.
+ */
+export function checkDatabase(): Promise<DbStatus> {
+  dbStatusPromise ??= probeDatabase()
+    .catch((err): DbStatus => {
+      dbStatusPromise = null;
+      return { available: false, source: dbSource, schemaReady: false, reason: errText(err) };
+    })
+    .then((status) => {
+      if (!status.available) dbStatusPromise = null;
+      return status;
+    });
+  return dbStatusPromise;
 }
 
 /**

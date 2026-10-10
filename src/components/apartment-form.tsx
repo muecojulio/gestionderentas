@@ -65,20 +65,20 @@ export function ApartmentForm({
     const aguaCentavos = money(aguaMonto);
     const rentaCentavos = money(renta);
     if (luzMonto.trim() && luzCentavos == null) {
-      setLocalError("El monto de luz no es válido.");
+      setLocalError("El monto de luz no es válido. Solo pesos mexicanos (MXN).");
       return;
     }
     if (aguaMonto.trim() && aguaCentavos == null) {
-      setLocalError("El monto de agua no es válido.");
+      setLocalError("El monto de agua no es válido. Solo pesos mexicanos (MXN).");
       return;
     }
     if (renta.trim() && rentaCentavos == null) {
-      setLocalError("El monto de renta no es válido.");
+      setLocalError("El monto de renta no es válido. Solo pesos mexicanos (MXN).");
       return;
     }
     const depositoCentavos = money(deposito);
     if (deposito.trim() && depositoCentavos == null) {
-      setLocalError("El monto del depósito no es válido.");
+      setLocalError("El monto del depósito no es válido. Solo pesos mexicanos (MXN).");
       return;
     }
     setLocalError(null);
@@ -217,7 +217,7 @@ export function ApartmentForm({
               placeholder="12"
             />
           </Field>
-          <Field label="Monto de luz" hint="Pesos">
+          <Field label="Monto de luz" hint="MXN · solo pesos mexicanos">
             <TextInput
               inputMode="decimal"
               value={luzMonto}
@@ -233,7 +233,7 @@ export function ApartmentForm({
               placeholder="18"
             />
           </Field>
-          <Field label="Monto de agua" hint="Pesos">
+          <Field label="Monto de agua" hint="MXN · solo pesos mexicanos">
             <TextInput
               inputMode="decimal"
               value={aguaMonto}
@@ -258,7 +258,7 @@ export function ApartmentForm({
           checked={ocupado}
           onCheckedChange={setOcupado}
           label="Está rentado"
-          hint="Apágalo si el departamento está libre"
+          hint="Apágalo si la propiedad está libre"
         />
         {ocupado ? (
           <div className="rise space-y-3">
@@ -273,7 +273,7 @@ export function ApartmentForm({
               />
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Renta mensual" hint="Pesos">
+              <Field label="Renta mensual" hint="MXN · solo pesos mexicanos">
                 <TextInput
                   inputMode="decimal"
                   value={renta}
@@ -313,7 +313,7 @@ export function ApartmentForm({
             <h3 className="font-display text-xl">Depósito en garantía</h3>
             <p className="text-sm text-muted">Queda en el historial de esta estancia cuando el inquilino sale.</p>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Monto" hint="Pesos">
+              <Field label="Monto" hint="MXN · solo pesos mexicanos">
                 <TextInput
                   inputMode="decimal"
                   value={deposito}

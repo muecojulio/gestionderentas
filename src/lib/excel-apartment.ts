@@ -33,7 +33,7 @@ function head(value: string): Cell {
   return { value, type: String, fontWeight: "bold" };
 }
 
-function pesos(centavos: number | null): Cell {
+function pesos(centavos: number | null): Cell { // MXN únicamente
   if (centavos == null) return text("—");
   return { value: centavos / 100, type: Number, format: '"$"#,##0.00' };
 }

@@ -12,7 +12,7 @@ import { AnimatedCounter, ProgressRing } from "@/components/animated-counter";
 import { EdgeFades } from "@/components/hscroller";
 import { DataError } from "@/components/data-error";
 import { Button, Empty } from "@/components/ui";
-import { formatRate, formatUsd } from "@/lib/exchange";
+// Rentas solo en MXN — sin conversión a USD
 import {
   computeAlerts,
   diasTexto,
@@ -23,7 +23,7 @@ import {
   tenureLabel,
 } from "@/lib/rentals.logic";
 import { useScrollEdges } from "@/lib/motion";
-import { useExchangeRate, useRentals } from "@/lib/use-rentals";
+import { useRentals } from "@/lib/use-rentals";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -39,7 +39,6 @@ const ALERT_ICON = {
 
 function Home() {
   const { portfolio, holidays } = useRentals();
-  const rate = useExchangeRate();
   const listRef = useRef<HTMLUListElement>(null);
   const edges = useScrollEdges(listRef);
 
@@ -73,7 +72,6 @@ function Home() {
   const received = occupied
     .filter((apt) => apt.recibido)
     .reduce((sum, apt) => sum + (apt.rentaCentavos ?? 0), 0);
-  const pendiente = Math.max(0, expected - received);
   const alerts = computeAlerts(apartments, today, holidays.data ?? []);
 
   return (
@@ -89,21 +87,10 @@ function Home() {
             {apartments.length} rentados · {apartments.filter((a) => a.tipo === "departamento").length} deptos ·{" "}
             {apartments.filter((a) => a.tipo === "accesoria").length} accesorias
           </p>
-          {rate.data ? (
-            <p
-              className="mt-3 inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-line bg-raised/80 px-3 py-1.5 text-xs text-muted"
-              title={rate.data.source}
-            >
-              <TrendingUp size={12} aria-hidden />
-              <span>
-                1 USD = {formatRate(rate.data.rate)} MXN · {rate.data.sourceLabel}
-                {rate.data.stale ? " (última tasa conocida)" : ""}
-              </span>
-              {pendiente > 0 ? (
-                <span>· por cobrar ≈ {formatUsd(pendiente, rate.data.rate)} USD</span>
-              ) : null}
-            </p>
-          ) : null}
+          <p className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line bg-raised/80 px-3 py-1.5 text-xs font-medium text-muted">
+            <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
+            Todas las rentas se cobran únicamente en pesos mexicanos (MXN)
+          </p>
         </div>
         <ProgressRing
           value={received}

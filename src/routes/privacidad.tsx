@@ -23,12 +23,12 @@ function Privacidad() {
         Esas consultas solo envían el año y el país. No incluyen nombres, teléfonos ni montos.
       </p>
       <p className="text-sm text-muted">
-        El tipo de cambio USD/MXN se consulta en fuentes públicas sin llave ni registro: la API pública de GitHub
-        sobre el repositorio abierto AllRates-Today/central-bank-exchange-rates (tasas oficiales de Banxico,
-        licencia CC BY 4.0) y, como respaldo, Frankfurter con datos del Banco Central Europeo. Esas consultas
-        solo piden la paridad USD/MXN: no envían datos tuyos ni de tus departamentos. La tasa se guarda en
-        caché (12 horas) para no repetir la consulta; la gráfica de ingresos y el resumen del mes se calculan
-        solo con tus propios cobros, dentro de tu cuenta.
+        <strong>Todas las rentas se cobran únicamente en pesos mexicanos (MXN).</strong> No se aceptan pagos en
+        dólares ni en otra moneda. El tipo de cambio USD/MXN solo se consulta de forma opcional como referencia
+        informativa en fuentes públicas sin llave ni registro (GitHub AllRates-Today/central-bank-exchange-rates
+        con tasas oficiales de Banxico, licencia CC BY 4.0, y respaldo Frankfurter del BCE). Esas consultas
+        solo piden la paridad USD/MXN, no envían datos tuyos y se guardan en caché 12 horas; los montos, la
+        gráfica de ingresos y el resumen del mes se calculan siempre en MXN dentro de tu cuenta.
       </p>
       <p className="text-sm text-muted">
         Los avisos del teléfono se muestran en este dispositivo. Puedes apagarlos en Avisos. Al salir un

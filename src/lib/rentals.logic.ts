@@ -212,16 +212,21 @@ export function daysBetween(fromIso: string, toIso: string): number {
   return Math.round((b - a) / 86_400_000);
 }
 
+/** Formatea centavos como pesos mexicanos (MXN) — única moneda de cobro.
+ *  El símbolo $ se desambigua con “MXN” para que nunca se confunda con USD. */
 export function formatMoney(centavos: number | null | undefined): string {
   if (centavos == null) return "—";
   const pesos = centavos / 100;
-  return new Intl.NumberFormat("es-MX", {
+  const base = new Intl.NumberFormat("es-MX", {
     style: "currency",
     currency: "MXN",
     maximumFractionDigits: centavos % 100 === 0 ? 0 : 2,
   }).format(pesos);
+  // En es-MX el formato es "$12,000" sin sufijo; lo hacemos explícito: "$12,000 MXN"
+  return base.includes("MXN") ? base : `${base} MXN`;
 }
 
+/** Convierte texto a centavos MXN. Solo acepta pesos mexicanos (MXN), sin USD ni otra moneda. */
 export function pesosToCentavos(raw: string): number | null {
   const t = raw.trim().replace(/\s/g, "").replace(/\$/g, "").replace(/,/g, "");
   if (!t) return null;

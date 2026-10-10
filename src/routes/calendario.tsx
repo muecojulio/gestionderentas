@@ -29,8 +29,8 @@ function Calendario() {
   useEffect(() => {
     if (serverToday && !picked) setMonth(isoToLocal(serverToday));
   }, [serverToday, picked]);
-  const apartments = portfolio.data?.apartments ?? [];
-  const holidayList = holidays.data ?? [];
+  const apartments = useMemo(() => portfolio.data?.apartments ?? [], [portfolio.data]);
+  const holidayList = useMemo(() => holidays.data ?? [], [holidays.data]);
   const marked = useMemo(() => {
     const year = month.getFullYear();
     const monthIndex = month.getMonth();
@@ -49,13 +49,13 @@ function Calendario() {
 
   return (
     <div className="space-y-6">
-      <header>
+      <header className="rise">
         <h1 className="font-display text-4xl">Agenda</h1>
         <p className="mt-1 text-sm text-muted">
           Rentas, luz, agua, ingresos, años de contrato, vencimientos y feriados de México.
         </p>
       </header>
-      <div className="agenda rounded-xl border border-line bg-raised p-3">
+      <div className="agenda rise rounded-xl border border-line bg-raised p-3" style={{ animationDelay: "80ms" }}>
         <DayPicker
           mode="single"
           locale={es}

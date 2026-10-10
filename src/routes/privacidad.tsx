@@ -17,8 +17,18 @@ function Privacidad() {
         publicidad.
       </p>
       <p className="text-sm text-muted">
-        El calendario consulta los feriados oficiales de México en un servicio público (Nager.Date). Esa
-        consulta solo envía el año y el país. No incluye nombres, teléfonos ni montos.
+        El calendario consulta los feriados oficiales de México en servicios públicos que no piden llave ni
+        registro: la API de Nager.Date y, como respaldo, las reglas oficiales del artículo 74 de la Ley Federal
+        del Trabajo (las mismas que publican los repositorios abiertos date-holidays y mx-feriados en GitHub).
+        Esas consultas solo envían el año y el país. No incluyen nombres, teléfonos ni montos.
+      </p>
+      <p className="text-sm text-muted">
+        El tipo de cambio USD/MXN se consulta en fuentes públicas sin llave ni registro: la API pública de GitHub
+        sobre el repositorio abierto AllRates-Today/central-bank-exchange-rates (tasas oficiales de Banxico,
+        licencia CC BY 4.0) y, como respaldo, Frankfurter con datos del Banco Central Europeo. Esas consultas
+        solo piden la paridad USD/MXN: no envían datos tuyos ni de tus departamentos. La tasa se guarda en
+        caché (12 horas) para no repetir la consulta; la gráfica de ingresos y el resumen del mes se calculan
+        solo con tus propios cobros, dentro de tu cuenta.
       </p>
       <p className="text-sm text-muted">
         Los avisos del teléfono se muestran en este dispositivo. Puedes apagarlos en Avisos. Al salir un

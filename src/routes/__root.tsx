@@ -54,6 +54,13 @@ function RootComponent() {
         <HeadContent />
       </head>
       <body>
+        {/* Fondo vivo: aurora animada + grano (decorativo, oculto a lectores) */}
+        <div className="aurora" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </div>
+        <div className="grain" aria-hidden="true" />
         <PreviewHostBridge />
         <AuthProvider>
           <QueryClientProvider client={client}>

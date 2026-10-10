@@ -1,18 +1,43 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight, TrendingUp } from "lucide-react";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { Toggle } from "@/components/ui";
+import { formatRate, formatUsd } from "@/lib/exchange";
 import { listMonth, setReceipt } from "@/lib/rentals.functions";
-import { diasTexto, formatMoney, monthTitle, periodInRange, shiftMonth } from "@/lib/rentals.logic";
-import { useRefreshRentals, useRentals } from "@/lib/use-rentals";
+import {
+  diasTexto,
+  formatMoney,
+  monthTitle,
+  periodInRange,
+  shiftMonth,
+} from "@/lib/rentals.logic";
+import { useExchangeRate, useIncomeTimeline, useRefreshRentals, useRentals } from "@/lib/use-rentals";
 
 export const Route = createFileRoute("/ingresos")({ component: Ingresos });
+
+const MESES_CORTOS = [
+  "ene",
+  "feb",
+  "mar",
+  "abr",
+  "may",
+  "jun",
+  "jul",
+  "ago",
+  "sep",
+  "oct",
+  "nov",
+  "dic",
+];
 
 function Ingresos() {
   const { portfolio } = useRentals();
   const refresh = useRefreshRentals();
+  const rate = useExchangeRate();
+  const timelineQuery = useIncomeTimeline();
   const [cursor, setCursor] = useState<{ anio: number; mes: number } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const anio = cursor?.anio ?? portfolio.data?.anio;
@@ -21,10 +46,25 @@ function Ingresos() {
     queryKey: ["month", anio, mes],
     queryFn: () => listMonth({ data: { anio: anio as number, mes: mes as number } }),
     enabled: anio != null && mes != null,
+    // Conserva el mes anterior visible mientras llega el nuevo (sin parpadeo).
+    placeholderData: keepPreviousData,
   });
 
   if (portfolio.isPending || anio == null || mes == null) {
-    return <p className="text-muted">Calculando ingresos…</p>;
+    return (
+      <div className="space-y-8" aria-busy="true" aria-live="polite">
+        <div className="space-y-3">
+          <div className="skeleton h-11 w-full" />
+          <div className="skeleton h-12 w-56" />
+          <div className="skeleton h-4 w-72" />
+        </div>
+        <div className="skeleton h-44 w-full" />
+        <div className="space-y-3">
+          <div className="skeleton h-16" />
+          <div className="skeleton h-16" />
+        </div>
+      </div>
+    );
   }
   if (portfolio.isError || !portfolio.data) return <p className="text-muted">No se pudieron cargar.</p>;
   const today = portfolio.data.today;
@@ -34,6 +74,12 @@ function Ingresos() {
   const canBack = periodInRange(older.anio, older.mes, today);
   const canForward = !atNow && periodInRange(newer.anio, newer.mes, today);
   const view = month.data?.ok ? month.data : null;
+  const cobradoPct =
+    view && view.esperado > 0 ? Math.min(100, Math.round((view.recibido / view.esperado) * 100)) : 0;
+  const timeline = (timelineQuery.data ?? []).map((point) => ({
+    ...point,
+    label: `${MESES_CORTOS[point.mes - 1]} ${String(point.anio).slice(2)}`,
+  }));
 
   async function toggle(id: string, receivedNow: boolean) {
     setBusy(id);
@@ -59,7 +105,7 @@ function Ingresos() {
             type="button"
             aria-label="Mes anterior"
             disabled={!canBack}
-            className="press grid size-11 place-items-center rounded-full border border-line disabled:opacity-40"
+            className="press grid size-11 place-items-center rounded-full border border-line disabled:cursor-not-allowed disabled:opacity-40"
             onClick={() => setCursor(older)}
           >
             <ChevronLeft size={18} />
@@ -69,7 +115,7 @@ function Ingresos() {
             type="button"
             aria-label="Mes siguiente"
             disabled={!canForward}
-            className="press grid size-11 place-items-center rounded-full border border-line disabled:opacity-40"
+            className="press grid size-11 place-items-center rounded-full border border-line disabled:cursor-not-allowed disabled:opacity-40"
             onClick={() => setCursor(newer)}
           >
             <ChevronRight size={18} />
@@ -86,7 +132,96 @@ function Ingresos() {
         <p className="mt-1 text-sm text-muted">
           En {portfolio.data.anio} llevas registrado {formatMoney(portfolio.data.recibidoAnio)}.
         </p>
+        {rate.data ? (
+          <p
+            className="mt-3 inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-line bg-raised/80 px-3 py-1.5 text-xs text-muted"
+            title={rate.data.source}
+          >
+            <TrendingUp size={12} aria-hidden />
+            <span>
+              1 USD = {formatRate(rate.data.rate)} MXN · {rate.data.sourceLabel}
+              {rate.data.stale ? " (última tasa conocida)" : ""}
+            </span>
+            {view && view.porCobrar > 0 ? (
+              <span>· por cobrar ≈ {formatUsd(view.porCobrar, rate.data.rate)} USD</span>
+            ) : null}
+          </p>
+        ) : null}
+        {view ? (
+          <div className="mt-4">
+            <div className="flex justify-between text-xs text-muted">
+              <span>Cobrado del mes</span>
+              <span>
+                {formatMoney(view.recibido)} de {formatMoney(view.esperado)} · {cobradoPct}%
+              </span>
+            </div>
+            <div
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={view.esperado}
+              aria-valuenow={view.recibido}
+              aria-label={`Progreso de cobro: ${cobradoPct}%`}
+              className="mt-1.5 h-2 overflow-hidden rounded-full bg-line"
+            >
+              <div
+                className="h-full rounded-full bg-accent transition-[width] duration-500 ease-out"
+                style={{ width: `${cobradoPct}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
       </header>
+
+      {timeline.length > 0 ? (
+        <section className="space-y-2 rounded-xl border border-line bg-raised p-4">
+          <h2 className="font-display text-2xl">Últimos 12 meses</h2>
+          <div className="h-44 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={timeline} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="ingresos" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#d4784a" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#d4784a" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="label"
+                  tick={{ fill: "#9a978c", fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                  interval={1}
+                />
+                <YAxis
+                  tick={{ fill: "#9a978c", fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={52}
+                  tickFormatter={(value) => `$${Math.round(Number(value) / 100 / 1000)}k`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "#1c1f19",
+                    border: "1px solid #31352c",
+                    borderRadius: "0.75rem",
+                    color: "#f3f0e8",
+                    fontSize: 12,
+                  }}
+                  formatter={(value) => [formatMoney(Number(value)), "Cobrado"]}
+                  labelFormatter={(label) => String(label)}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="centavos"
+                  stroke="#d4784a"
+                  strokeWidth={2}
+                  fill="url(#ingresos)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+      ) : null}
+
       {month.isError || (month.data && !month.data.ok) ? (
         <p className="text-sm text-muted">No se pudo abrir ese mes.</p>
       ) : null}
@@ -94,12 +229,13 @@ function Ingresos() {
         <p className="text-sm text-muted">Nadie debía renta en este mes.</p>
       ) : null}
       {view && view.rows.length > 0 ? (
-        <ul className="space-y-3">
+        <ul className="space-y-3" aria-label="Rentas del mes">
           {view.rows.map((row) => (
             <li key={row.apartmentId} className="rounded-xl border border-line bg-raised px-4 py-2">
               <Toggle
                 checked={row.recibido}
                 onCheckedChange={(value) => void toggle(row.apartmentId, value)}
+                disabled={busy === row.apartmentId}
                 label={`${row.nombre} · ${formatMoney(row.rentaCentavos)}`}
                 hint={
                   busy === row.apartmentId

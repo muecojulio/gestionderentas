@@ -1,5 +1,14 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 @import "react-day-picker/style.css";
+
+/*
+ * Identidad visual: tema oscuro cálido (carbón + terracota) con Fraunces para
+ * titulares y Outfit para texto. El sistema de microinteracciones vive en las
+ * utilidades de abajo (.press, .lift, .shake, .skeleton, .fade-edge…) y se
+ * inspira en componentes abiertos públicos: shadcn/ui (estados y foco),
+ * motion/primitives (microinteracciones de botón) y magicui (fondos vivos).
+ */
 
 @theme {
   --color-bg: #121410;
@@ -31,22 +40,225 @@
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
+  /* Respuestas táctiles inmediatas (sin retardo de doble toque) en todos los
+     controles; el scroll vertical de la página no se toca. */
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  [role="button"],
+  [role="tab"],
+  [role="switch"],
+  [role="option"] {
+    touch-action: manipulation;
+  }
+  /* Foco de teclado siempre visible, también con ratón tras navegar con flechas. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
   ::selection {
     background: color-mix(in srgb, var(--color-accent) 45%, transparent);
     color: var(--color-fg);
   }
+  /* Scroll suave solo cuando el usuario no pidió movimiento reducido. */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
 }
 
-.press {
-  transition:
-    scale 150ms ease-out,
-    background-color 180ms ease,
-    border-color 180ms ease,
-    color 180ms ease,
-    opacity 180ms ease;
+/* ── Fondo vivo: aurora + grano ─────────────────────────────────────────── */
+
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--color-bg);
 }
-.press:active:not(:disabled) {
-  scale: 0.96;
+.aurora i {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  will-change: transform;
+}
+.aurora i:nth-child(1) {
+  width: 62vmax;
+  height: 62vmax;
+  left: -22vmax;
+  top: -28vmax;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--color-accent) 20%, transparent),
+    transparent 72%
+  );
+  animation: drift-a 26s ease-in-out infinite alternate;
+}
+.aurora i:nth-child(2) {
+  width: 56vmax;
+  height: 56vmax;
+  right: -24vmax;
+  bottom: -24vmax;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, #7a8b4f 22%, transparent),
+    transparent 72%
+  );
+  animation: drift-b 34s ease-in-out infinite alternate;
+}
+.aurora i:nth-child(3) {
+  width: 40vmax;
+  height: 40vmax;
+  left: 30vw;
+  top: 40vh;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, #b98a3e 12%, transparent),
+    transparent 70%
+  );
+  animation: drift-a 42s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes drift-a {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(6vmax, 4vmax, 0) scale(1.15);
+  }
+}
+@keyframes drift-b {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.1);
+  }
+  to {
+    transform: translate3d(-5vmax, -6vmax, 0) scale(0.95);
+  }
+}
+
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── Microinteracciones ─────────────────────────────────────────────────── */
+
+@layer utilities {
+  /* Pulsación tangible: reduce escala al presionar, transición suave. */
+  .press {
+    transition:
+      scale 150ms ease-out,
+      background-color 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease,
+      opacity 180ms ease,
+      filter 180ms ease;
+  }
+  .press:active:not(:disabled) {
+    scale: 0.96;
+  }
+
+  /* Elevación sutil solo con ratón (nunca dependas del hover en táctil). */
+  @media (hover: hover) {
+    .lift {
+      transition:
+        transform 180ms ease,
+        box-shadow 180ms ease,
+        border-color 180ms ease;
+    }
+    .lift:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 34px -14px rgb(0 0 0 / 0.55);
+    }
+  }
+
+  /* Sacudida muy discreta para estados de error (no depende solo del color). */
+  .shake {
+    animation: shake 320ms ease;
+  }
+
+  /* Placeholder de carga con brillo deslizante. */
+  .skeleton {
+    border-radius: var(--radius-lg);
+    background: linear-gradient(
+      100deg,
+      var(--color-raised) 30%,
+      color-mix(in srgb, var(--color-fg) 7%, var(--color-raised)) 50%,
+      var(--color-raised) 70%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+
+  /* Oculta la barra SIN quitar la capacidad de desplazarse. */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Indicadores de desbordamiento para carriles horizontales. El color se
+     ajusta con --fade-from para fundirse con el fondo que los contiene. */
+  .fade-edge {
+    --fade-from: var(--color-bg);
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2.5rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 200ms ease;
+    z-index: 1;
+  }
+  .fade-edge.left {
+    left: 0;
+    background: linear-gradient(90deg, var(--fade-from), transparent);
+  }
+  .fade-edge.right {
+    right: 0;
+    background: linear-gradient(270deg, var(--fade-from), transparent);
+  }
+  .fade-edge.on {
+    opacity: 1;
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
 }
 
 .rise {
@@ -63,6 +275,8 @@
     transform: translateY(0);
   }
 }
+
+/* ── Calendario ─────────────────────────────────────────────────────────── */
 
 .agenda .rdp-root {
   --rdp-accent-color: var(--color-accent);
@@ -91,12 +305,31 @@
   box-shadow: inset 0 -3px 0 var(--color-accent);
 }
 
+/* ── Movimiento reducido ────────────────────────────────────────────────── */
+
 @media (prefers-reduced-motion: reduce) {
-  .rise {
+  html {
+    scroll-behavior: auto;
+  }
+  .rise,
+  .shake,
+  .skeleton,
+  .aurora i {
     animation: none;
   }
   .press,
-  .thumb {
+  .lift,
+  .thumb,
+  .fade-edge {
     transition: none;
+  }
+  /* Regla de respaldo: cualquier animación/transición restante se anula. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

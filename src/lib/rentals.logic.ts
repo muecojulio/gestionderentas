@@ -20,6 +20,10 @@ export type Apartment = {
   ocupado: boolean;
   notas: string;
   recibido: boolean;
+  depositoCentavos: number | null;
+  depositoFecha: string | null;
+  depositoEstado: DepositoEstado | null;
+  depositoNota: string;
 };
 
 export type Tenancy = {
@@ -28,6 +32,10 @@ export type Tenancy = {
   rentaCentavos: number | null;
   inicio: string | null;
   fin: string | null;
+  depositoCentavos: number | null;
+  depositoFecha: string | null;
+  depositoEstado: DepositoEstado | null;
+  depositoNota: string;
 };
 
 export type BlacklistEntry = {
@@ -69,14 +77,62 @@ export type ApartmentInput = {
   ocupado: boolean;
   notas: string;
   forzar: boolean;
+  depositoCentavos: number | null;
+  depositoFecha: string | null;
+  depositoEstado: DepositoEstado | null;
+  depositoNota: string;
 };
 
 export type Alert = {
   key: string;
-  kind: "renta" | "contrato";
+  kind: "renta" | "contrato" | "mora";
   apartmentId: string;
   title: string;
   detail: string;
+};
+
+export type DepositoEstado = "en_poder" | "devuelto" | "retenido";
+
+export const DEPOSITO_LABEL: Record<DepositoEstado, string> = {
+  en_poder: "En tu poder",
+  devuelto: "Devuelto",
+  retenido: "Retenido",
+};
+
+export type Receipt = {
+  apartmentId: string;
+  anio: number;
+  mes: number;
+  centavos: number;
+  recibidoEl: string;
+};
+
+export type MonthRow = {
+  apartmentId: string;
+  nombre: string;
+  inquilino: string;
+  rentaCentavos: number;
+  recibido: boolean;
+  diasMora: number | null;
+};
+
+export type MonthStay = {
+  id: string;
+  nombre: string;
+  ocupado: boolean;
+  inquilino: string;
+  rentaCentavos: number | null;
+  ingreso: string | null;
+  contratoInicio: string | null;
+  diaPago: number | null;
+};
+
+export type MonthTenancy = {
+  apartmentId: string;
+  inquilino: string;
+  rentaCentavos: number | null;
+  inicio: string | null;
+  fin: string | null;
 };
 
 const MESES = [
@@ -198,6 +254,148 @@ export function tenureLabel(fromIso: string | null, todayIso: string): string {
   return parts.join(" y ");
 }
 
+export function diasTexto(days: number): string {
+  return `${days} ${days === 1 ? "día" : "días"}`;
+}
+
+export function shiftMonth(anio: number, mes: number, delta: number): { anio: number; mes: number } {
+  const date = new Date(Date.UTC(anio, mes - 1 + delta, 1));
+  return { anio: date.getUTCFullYear(), mes: date.getUTCMonth() + 1 };
+}
+
+export function periodInRange(anio: number, mes: number, today: string): boolean {
+  if (!Number.isInteger(anio) || !Number.isInteger(mes) || mes < 1 || mes > 12) return false;
+  const current = { anio: Number(today.slice(0, 4)), mes: Number(today.slice(5, 7)) };
+  if (anio > current.anio || (anio === current.anio && mes > current.mes)) return false;
+  const oldest = shiftMonth(current.anio, current.mes, -35);
+  if (anio < oldest.anio || (anio === oldest.anio && mes < oldest.mes)) return false;
+  return true;
+}
+
+export function depositoEstadoOf(value: unknown): DepositoEstado | null {
+  if (value === "en_poder" || value === "devuelto" || value === "retenido") return value;
+  return null;
+}
+
+export function monthStart(anio: number, mes: number): string {
+  return `${anio}-${String(mes).padStart(2, "0")}-01`;
+}
+
+export function monthEnd(anio: number, mes: number): string {
+  const last = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
+  return `${anio}-${String(mes).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
+}
+
+export function monthsFrom(
+  from: { anio: number; mes: number },
+  to: { anio: number; mes: number },
+): { anio: number; mes: number }[] {
+  const out: { anio: number; mes: number }[] = [];
+  let cursor = from;
+  while (cursor.anio < to.anio || (cursor.anio === to.anio && cursor.mes <= to.mes)) {
+    out.push(cursor);
+    if (out.length > 48) break;
+    cursor = shiftMonth(cursor.anio, cursor.mes, 1);
+  }
+  return out;
+}
+
+/** A stay covers a month. An open stay with no start date covers every month (para anotar atrasos). */
+export function stayOverlapsMonth(
+  inicio: string | null,
+  fin: string | null,
+  anio: number,
+  mes: number,
+  open: boolean,
+): boolean {
+  const start = monthStart(anio, mes);
+  const end = monthEnd(anio, mes);
+  if (inicio && inicio > end) return false;
+  if (fin && fin < start) return false;
+  if (!inicio && !open) {
+    if (!fin) return false;
+    return fin >= start && fin <= end;
+  }
+  return true;
+}
+
+export function rentMora(
+  apt: Pick<Apartment, "ocupado" | "diaPago" | "recibido" | "ingreso" | "contratoInicio">,
+  todayIso: string,
+): { days: number; due: string } | null {
+  if (!apt.ocupado || !apt.diaPago || apt.recibido) return null;
+  const year = Number(todayIso.slice(0, 4));
+  const monthIndex = Number(todayIso.slice(5, 7)) - 1;
+  const due = clampDue(year, monthIndex, apt.diaPago);
+  if (todayIso <= due) return null;
+  const start = apt.ingreso ?? apt.contratoInicio;
+  if (start && start > due) return null;
+  const days = daysBetween(due, todayIso);
+  if (days < 1) return null;
+  return { days, due };
+}
+
+export function rowsForMonth(input: {
+  anio: number;
+  mes: number;
+  today: string;
+  apartments: MonthStay[];
+  tenancies: MonthTenancy[];
+  receipts: { apartmentId: string; centavos: number }[];
+}): MonthRow[] {
+  const todayYear = Number(input.today.slice(0, 4));
+  const todayMonth = Number(input.today.slice(5, 7));
+  const current = input.anio === todayYear && input.mes === todayMonth;
+  const rows: MonthRow[] = [];
+  for (const apt of input.apartments) {
+    type Span = { open: boolean; inquilino: string; renta: number | null; inicio: string | null };
+    const spans: Span[] = [];
+    if (apt.ocupado) {
+      const inicio = apt.ingreso ?? apt.contratoInicio;
+      if (stayOverlapsMonth(inicio, null, input.anio, input.mes, true)) {
+        spans.push({ open: true, inquilino: apt.inquilino, renta: apt.rentaCentavos, inicio });
+      }
+    }
+    for (const stay of input.tenancies) {
+      if (stay.apartmentId !== apt.id) continue;
+      if (!stayOverlapsMonth(stay.inicio, stay.fin, input.anio, input.mes, false)) continue;
+      spans.push({
+        open: false,
+        inquilino: stay.inquilino,
+        renta: stay.rentaCentavos,
+        inicio: stay.inicio,
+      });
+    }
+    const chosen = spans.find((span) => span.open) ?? spans.sort((a, b) => (b.inicio ?? "").localeCompare(a.inicio ?? ""))[0];
+    if (!chosen || chosen.renta == null) continue;
+    const paid = input.receipts.some((receipt) => receipt.apartmentId === apt.id);
+    let diasMora: number | null = null;
+    if (current && chosen.open && !paid) {
+      diasMora =
+        rentMora(
+          {
+            ocupado: true,
+            diaPago: apt.diaPago,
+            recibido: false,
+            ingreso: apt.ingreso,
+            contratoInicio: apt.contratoInicio,
+          },
+          input.today,
+        )?.days ?? null;
+    }
+    rows.push({
+      apartmentId: apt.id,
+      nombre: apt.nombre,
+      inquilino: chosen.inquilino,
+      rentaCentavos: chosen.renta,
+      recibido: paid,
+      diasMora,
+    });
+  }
+  rows.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  return rows;
+}
+
 function clampDue(year: number, monthIndex: number, day: number): string {
   const last = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
   const d = Math.min(Math.max(day, 1), last);
@@ -229,7 +427,17 @@ export function computeAlerts(
   const alerts: Alert[] = [];
   for (const apt of apartments) {
     if (!apt.ocupado) continue;
-    if (apt.diaPago) {
+    const late = rentMora(apt, todayIso);
+    if (late) {
+      const who = apt.inquilino || "El inquilino";
+      alerts.push({
+        key: `mora:${apt.id}:${todayIso.slice(0, 7)}`,
+        kind: "mora",
+        apartmentId: apt.id,
+        title: `Lleva ${diasTexto(late.days)} sin pagar la renta de ${apt.nombre}`,
+        detail: `${who} · ${formatMoney(apt.rentaCentavos)} · venció el ${longDate(late.due)}`,
+      });
+    } else if (apt.diaPago) {
       const { due, daysUntil } = upcomingDue(apt.diaPago, todayIso);
       if (daysUntil === 0 || daysUntil === 1) {
         const holiday = holidayOn.get(due);
@@ -416,6 +624,21 @@ export function parseApartmentInput(
   ) {
     return { ok: false, error: "El contrato no puede vencer antes de iniciar." };
   }
+  const depositoCentavos = money(o.depositoCentavos);
+  if (depositoCentavos !== null && Number.isNaN(depositoCentavos)) {
+    return { ok: false, error: "Revisa el monto del depósito." };
+  }
+  const depositoFecha = dateOrNull(o.depositoFecha);
+  if (depositoFecha === "invalid") return { ok: false, error: "Revisa la fecha del depósito." };
+  const estadoRaw = o.depositoEstado == null || o.depositoEstado === "" ? null : text(o.depositoEstado, 20);
+  if (estadoRaw && estadoRaw !== "en_poder" && estadoRaw !== "devuelto" && estadoRaw !== "retenido") {
+    return { ok: false, error: "El estado del depósito no es válido." };
+  }
+  const depositoNota = text(o.depositoNota, 240);
+  const conDeposito = ocupado && depositoCentavos != null;
+  const depositoEstado: DepositoEstado | null = conDeposito
+    ? ((estadoRaw as DepositoEstado | null) ?? "en_poder")
+    : null;
   return {
     ok: true,
     value: {
@@ -440,6 +663,10 @@ export function parseApartmentInput(
       ocupado,
       notas: ocupado ? text(o.notas, 500) : "",
       forzar: o.forzar === true,
+      depositoCentavos: conDeposito ? depositoCentavos : null,
+      depositoFecha: conDeposito && depositoFecha !== "invalid" ? depositoFecha : null,
+      depositoEstado,
+      depositoNota: conDeposito ? depositoNota : "",
     },
   };
 }

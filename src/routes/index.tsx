@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { computeAlerts, formatMoney, monthTitle, tenureLabel } from "@/lib/rentals.logic";
+import { computeAlerts, diasTexto, formatMoney, monthTitle, rentMora, tenureLabel } from "@/lib/rentals.logic";
 import { useRentals } from "@/lib/use-rentals";
 import { Button, Empty } from "@/components/ui";
 
@@ -65,7 +65,9 @@ function Home() {
         />
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
-          {apartments.map((apt, index) => (
+          {apartments.map((apt, index) => {
+            const late = apt.ocupado ? rentMora(apt, today) : null;
+            return (
             <li key={apt.id} className="rise" style={{ animationDelay: `${index * 60}ms` }}>
               <Link
                 to="/depto/$id"
@@ -85,15 +87,20 @@ function Home() {
                   <p className="text-sm text-fg">
                     {apt.ocupado ? formatMoney(apt.rentaCentavos) : "Sin inquilino"}
                   </p>
-                  <p className="text-sm text-muted">
-                    {apt.ocupado
-                      ? tenureLabel(apt.ingreso ?? apt.contratoInicio, today)
-                      : apt.direccion || "Listo para un nuevo inquilino"}
-                  </p>
+                  {late ? (
+                    <p className="text-sm text-accent">Lleva {diasTexto(late.days)} sin pagar</p>
+                  ) : (
+                    <p className="text-sm text-muted">
+                      {apt.ocupado
+                        ? tenureLabel(apt.ingreso ?? apt.contratoInicio, today)
+                        : apt.direccion || "Listo para un nuevo inquilino"}
+                    </p>
+                  )}
                 </div>
               </Link>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

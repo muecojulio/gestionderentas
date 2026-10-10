@@ -41,9 +41,10 @@ function Avisos() {
 
   const data = portfolio.data;
   const alerts = data ? computeAlerts(data.apartments, data.today, holidays.data ?? []) : [];
+  const lateIds = new Set(alerts.filter((alert) => alert.kind === "mora").map((alert) => alert.apartmentId));
   const soon =
     data?.apartments.filter((apt) => {
-      if (!apt.ocupado || !apt.diaPago) return false;
+      if (!apt.ocupado || !apt.diaPago || lateIds.has(apt.id)) return false;
       const { daysUntil } = upcomingDue(apt.diaPago, data.today);
       return daysUntil > 1 && daysUntil <= 7;
     }) ?? [];
@@ -53,8 +54,8 @@ function Avisos() {
       <header>
         <h1 className="font-display text-4xl">Avisos</h1>
         <p className="mt-2 text-sm text-muted">
-          Un día antes de la renta, y desde 35 días antes de que venza el contrato. El aviso aparece aquí
-          siempre. En el teléfono, también si activas las notificaciones y abres la app ese día.
+          Un día antes de la renta. Si ya pasó el día y no la marcaste como recibida, aquí verás cuántos días
+          lleva sin pagar. También desde 35 días antes de que venza el contrato.
         </p>
       </header>
       <Toggle

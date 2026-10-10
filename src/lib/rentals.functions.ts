@@ -3,14 +3,21 @@ import { getSql, type Sql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
 import {
   blacklistHit,
+  depositoEstadoOf,
   isUuid,
   mexicoToday,
   parseApartmentInput,
+  periodInRange,
+  rowsForMonth,
   type Apartment,
   type ApartmentInput,
   type BlacklistEntry,
+  type DepositoEstado,
   type Holiday,
+  type MonthStay,
+  type MonthTenancy,
   type Portfolio,
+  type Receipt,
   type Tenancy,
 } from "@/lib/rentals.logic";
 
@@ -50,6 +57,10 @@ type ApartmentRow = {
   ocupado: unknown;
   notas: string;
   recibido: unknown;
+  deposito_centavos: unknown;
+  deposito_fecha: string | null;
+  deposito_estado: string | null;
+  deposito_nota: string;
 };
 
 function mapApartment(row: ApartmentRow): Apartment {
@@ -75,6 +86,10 @@ function mapApartment(row: ApartmentRow): Apartment {
     ocupado: flag(row.ocupado),
     notas: row.notas ?? "",
     recibido: flag(row.recibido),
+    depositoCentavos: num(row.deposito_centavos),
+    depositoFecha: row.deposito_fecha || null,
+    depositoEstado: depositoEstadoOf(row.deposito_estado),
+    depositoNota: row.deposito_nota ?? "",
   };
 }
 
@@ -97,6 +112,7 @@ export const listPortfolio = createServerFn({ method: "GET" })
              a.nota_servicios, a.luz_dia, a.luz_centavos, a.agua_dia, a.agua_centavos,
              a.renta_centavos, a.inquilino, a.telefono, a.dia_pago, a.contrato_inicio,
              a.contrato_fin, a.ingreso, a.ocupado, a.notas,
+             a.deposito_centavos, a.deposito_fecha, a.deposito_estado, a.deposito_nota,
              (r.id is not null) as recibido
       from apartments a
       left join receipts r
@@ -135,8 +151,13 @@ export const listHistory = createServerFn({ method: "GET" })
       renta_centavos: unknown;
       inicio: string | null;
       fin: string | null;
+      deposito_centavos: unknown;
+      deposito_fecha: string | null;
+      deposito_estado: string | null;
+      deposito_nota: string;
     }>`
-      select id, inquilino, renta_centavos, inicio, fin
+      select id, inquilino, renta_centavos, inicio, fin,
+             deposito_centavos, deposito_fecha, deposito_estado, deposito_nota
       from tenancies
       where user_id = ${context.userId} and apartment_id = ${id}
       order by fin desc, created_at desc
@@ -147,6 +168,10 @@ export const listHistory = createServerFn({ method: "GET" })
       rentaCentavos: num(row.renta_centavos),
       inicio: row.inicio || null,
       fin: row.fin || null,
+      depositoCentavos: num(row.deposito_centavos),
+      depositoFecha: row.deposito_fecha || null,
+      depositoEstado: depositoEstadoOf(row.deposito_estado),
+      depositoNota: row.deposito_nota ?? "",
     }));
   });
 
@@ -208,6 +233,32 @@ export const listHolidays = createServerFn({ method: "GET" })
     }
   });
 
+async function archiveStay(
+  sql: Sql,
+  userId: string,
+  apartmentId: string,
+  stay: {
+    inquilino: string;
+    rentaCentavos: number | null;
+    inicio: string | null;
+    depositoCentavos: number | null;
+    depositoFecha: string | null;
+    depositoEstado: DepositoEstado | null;
+    depositoNota: string;
+  },
+) {
+  await sql`
+    insert into tenancies (
+      id, user_id, apartment_id, inquilino, renta_centavos, inicio, fin,
+      deposito_centavos, deposito_fecha, deposito_estado, deposito_nota
+    ) values (
+      ${crypto.randomUUID()}, ${userId}, ${apartmentId}, ${stay.inquilino},
+      ${stay.rentaCentavos}, ${stay.inicio}, ${mexicoToday()},
+      ${stay.depositoCentavos}, ${stay.depositoFecha}, ${stay.depositoEstado}, ${stay.depositoNota}
+    )
+  `;
+}
+
 async function writeApartment(sql: Sql, userId: string, input: ApartmentInput) {
   if (input.id) {
     const rows = await sql<{ id: string }>`
@@ -230,7 +281,11 @@ async function writeApartment(sql: Sql, userId: string, input: ApartmentInput) {
         contrato_fin = ${input.contratoFin},
         ingreso = ${input.ingreso},
         ocupado = ${input.ocupado},
-        notas = ${input.notas}
+        notas = ${input.notas},
+        deposito_centavos = ${input.depositoCentavos},
+        deposito_fecha = ${input.depositoFecha},
+        deposito_estado = ${input.depositoEstado},
+        deposito_nota = ${input.depositoNota}
       where id = ${input.id} and user_id = ${userId}
       returning id
     `;
@@ -241,14 +296,16 @@ async function writeApartment(sql: Sql, userId: string, input: ApartmentInput) {
     insert into apartments (
       id, user_id, nombre, direccion, foto, medidor_luz, medidor_agua, nota_servicios,
       luz_dia, luz_centavos, agua_dia, agua_centavos, renta_centavos, inquilino, telefono,
-      dia_pago, contrato_inicio, contrato_fin, ingreso, ocupado, notas
+      dia_pago, contrato_inicio, contrato_fin, ingreso, ocupado, notas,
+      deposito_centavos, deposito_fecha, deposito_estado, deposito_nota
     ) values (
       ${id}, ${userId}, ${input.nombre}, ${input.direccion}, ${input.foto},
       ${input.medidorLuz}, ${input.medidorAgua}, ${input.notaServicios},
       ${input.luzDia}, ${input.luzCentavos}, ${input.aguaDia}, ${input.aguaCentavos},
       ${input.rentaCentavos}, ${input.inquilino}, ${input.telefono}, ${input.diaPago},
       ${input.contratoInicio}, ${input.contratoFin}, ${input.ingreso}, ${input.ocupado},
-      ${input.notas}
+      ${input.notas}, ${input.depositoCentavos}, ${input.depositoFecha},
+      ${input.depositoEstado}, ${input.depositoNota}
     )
   `;
   return id;
@@ -279,20 +336,27 @@ export const saveApartment = createServerFn({ method: "POST" })
         renta_centavos: unknown;
         ingreso: string | null;
         contrato_inicio: string | null;
+        deposito_centavos: unknown;
+        deposito_fecha: string | null;
+        deposito_estado: string | null;
+        deposito_nota: string;
       }>`
-        select ocupado, inquilino, renta_centavos, ingreso, contrato_inicio
+        select ocupado, inquilino, renta_centavos, ingreso, contrato_inicio,
+               deposito_centavos, deposito_fecha, deposito_estado, deposito_nota
         from apartments
         where id = ${input.id} and user_id = ${context.userId}
       `;
       const before = prev[0];
       if (before && flag(before.ocupado)) {
-        await sql`
-          insert into tenancies (id, user_id, apartment_id, inquilino, renta_centavos, inicio, fin)
-          values (
-            ${crypto.randomUUID()}, ${context.userId}, ${input.id}, ${before.inquilino ?? ""},
-            ${num(before.renta_centavos)}, ${before.ingreso ?? before.contrato_inicio}, ${mexicoToday()}
-          )
-        `;
+        await archiveStay(sql, context.userId, input.id, {
+          inquilino: before.inquilino ?? "",
+          rentaCentavos: num(before.renta_centavos),
+          inicio: before.ingreso ?? before.contrato_inicio,
+          depositoCentavos: num(before.deposito_centavos),
+          depositoFecha: before.deposito_fecha || null,
+          depositoEstado: depositoEstadoOf(before.deposito_estado),
+          depositoNota: before.deposito_nota ?? "",
+        });
       }
     }
     const id = await writeApartment(sql, context.userId, input);
@@ -312,6 +376,7 @@ export const vacateApartment = createServerFn({ method: "POST" })
       select id, nombre, direccion, foto, medidor_luz, medidor_agua, nota_servicios,
              luz_dia, luz_centavos, agua_dia, agua_centavos, renta_centavos, inquilino,
              telefono, dia_pago, contrato_inicio, contrato_fin, ingreso, ocupado, notas,
+             deposito_centavos, deposito_fecha, deposito_estado, deposito_nota,
              false as recibido
       from apartments
       where id = ${id} and user_id = ${context.userId}
@@ -320,13 +385,15 @@ export const vacateApartment = createServerFn({ method: "POST" })
     if (!current) return { ok: false as const, error: "No encontramos ese departamento." };
     const apt = mapApartment(current);
     if (apt.ocupado || apt.inquilino) {
-      await sql`
-        insert into tenancies (id, user_id, apartment_id, inquilino, renta_centavos, inicio, fin)
-        values (
-          ${crypto.randomUUID()}, ${context.userId}, ${id}, ${apt.inquilino},
-          ${apt.rentaCentavos}, ${apt.ingreso ?? apt.contratoInicio}, ${mexicoToday()}
-        )
-      `;
+      await archiveStay(sql, context.userId, id, {
+        inquilino: apt.inquilino,
+        rentaCentavos: apt.rentaCentavos,
+        inicio: apt.ingreso ?? apt.contratoInicio,
+        depositoCentavos: apt.depositoCentavos,
+        depositoFecha: apt.depositoFecha,
+        depositoEstado: apt.depositoEstado,
+        depositoNota: apt.depositoNota,
+      });
     }
     await sql`
       update apartments set
@@ -342,7 +409,11 @@ export const vacateApartment = createServerFn({ method: "POST" })
         contrato_fin = null,
         ingreso = null,
         ocupado = false,
-        notas = ''
+        notas = '',
+        deposito_centavos = null,
+        deposito_fecha = null,
+        deposito_estado = null,
+        deposito_nota = ''
       where id = ${id} and user_id = ${context.userId}
     `;
     return { ok: true as const };
@@ -365,29 +436,202 @@ export const deleteApartment = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+async function loadStays(sql: Sql, userId: string): Promise<MonthStay[]> {
+  const rows = await sql<{
+    id: string;
+    nombre: string;
+    ocupado: unknown;
+    inquilino: string;
+    renta_centavos: unknown;
+    ingreso: string | null;
+    contrato_inicio: string | null;
+    dia_pago: unknown;
+  }>`
+    select id, nombre, ocupado, inquilino, renta_centavos, ingreso, contrato_inicio, dia_pago
+    from apartments
+    where user_id = ${userId}
+  `;
+  return rows.map((row) => ({
+    id: row.id,
+    nombre: row.nombre,
+    ocupado: flag(row.ocupado),
+    inquilino: row.inquilino ?? "",
+    rentaCentavos: num(row.renta_centavos),
+    ingreso: row.ingreso || null,
+    contratoInicio: row.contrato_inicio || null,
+    diaPago: num(row.dia_pago),
+  }));
+}
+
+async function loadTenancies(sql: Sql, userId: string): Promise<MonthTenancy[]> {
+  const rows = await sql<{
+    apartment_id: string;
+    inquilino: string;
+    renta_centavos: unknown;
+    inicio: string | null;
+    fin: string | null;
+  }>`
+    select apartment_id, inquilino, renta_centavos, inicio, fin
+    from tenancies
+    where user_id = ${userId}
+  `;
+  return rows.map((row) => ({
+    apartmentId: row.apartment_id,
+    inquilino: row.inquilino ?? "",
+    rentaCentavos: num(row.renta_centavos),
+    inicio: row.inicio || null,
+    fin: row.fin || null,
+  }));
+}
+
+export const listMonth = createServerFn({ method: "POST" })
+  .validator((raw: unknown) => {
+    if (!raw || typeof raw !== "object") throw new Error("Mes inválido.");
+    const o = raw as { anio?: unknown; mes?: unknown };
+    const anio = Number(o.anio);
+    const mes = Number(o.mes);
+    if (!Number.isInteger(anio) || !Number.isInteger(mes)) throw new Error("Mes inválido.");
+    return { anio, mes };
+  })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const today = mexicoToday();
+    if (!periodInRange(data.anio, data.mes, today)) {
+      return { ok: false as const, error: "Ese mes está fuera del archivo." };
+    }
+    const sql = await getSql();
+    const [apartments, tenancies, receipts] = await Promise.all([
+      loadStays(sql, context.userId),
+      loadTenancies(sql, context.userId),
+      sql<{ apartment_id: string; centavos: unknown }>`
+        select apartment_id, centavos from receipts
+        where user_id = ${context.userId} and anio = ${data.anio} and mes = ${data.mes}
+      `,
+    ]);
+    const rows = rowsForMonth({
+      anio: data.anio,
+      mes: data.mes,
+      today,
+      apartments,
+      tenancies,
+      receipts: receipts.map((row) => ({
+        apartmentId: row.apartment_id,
+        centavos: num(row.centavos) ?? 0,
+      })),
+    });
+    const esperado = rows.reduce((sum, row) => sum + row.rentaCentavos, 0);
+    const recibido = rows.filter((row) => row.recibido).reduce((sum, row) => sum + row.rentaCentavos, 0);
+    return { ok: true as const, anio: data.anio, mes: data.mes, rows, esperado, recibido, porCobrar: esperado - recibido };
+  });
+
+export const exportApartment = createServerFn({ method: "POST" })
+  .validator((id: unknown) => {
+    if (typeof id !== "string" || !isUuid(id)) throw new Error("Departamento inválido.");
+    return id;
+  })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data: id }) => {
+    const sql = await getSql();
+    const today = mexicoToday();
+    const anio = Number(today.slice(0, 4));
+    const mes = Number(today.slice(5, 7));
+    const rows = await sql<ApartmentRow>`
+      select a.id, a.nombre, a.direccion, a.foto, a.medidor_luz, a.medidor_agua,
+             a.nota_servicios, a.luz_dia, a.luz_centavos, a.agua_dia, a.agua_centavos,
+             a.renta_centavos, a.inquilino, a.telefono, a.dia_pago, a.contrato_inicio,
+             a.contrato_fin, a.ingreso, a.ocupado, a.notas,
+             a.deposito_centavos, a.deposito_fecha, a.deposito_estado, a.deposito_nota,
+             (r.id is not null) as recibido
+      from apartments a
+      left join receipts r
+        on r.apartment_id = a.id and r.user_id = a.user_id and r.anio = ${anio} and r.mes = ${mes}
+      where a.id = ${id} and a.user_id = ${context.userId}
+    `;
+    const current = rows[0];
+    if (!current) return { ok: false as const, error: "No encontramos ese departamento." };
+    const historyRows = await sql<{
+      id: string;
+      inquilino: string;
+      renta_centavos: unknown;
+      inicio: string | null;
+      fin: string | null;
+      deposito_centavos: unknown;
+      deposito_fecha: string | null;
+      deposito_estado: string | null;
+      deposito_nota: string;
+    }>`
+      select id, inquilino, renta_centavos, inicio, fin,
+             deposito_centavos, deposito_fecha, deposito_estado, deposito_nota
+      from tenancies
+      where user_id = ${context.userId} and apartment_id = ${id}
+      order by fin desc
+    `;
+    const receiptRows = await sql<{
+      anio: unknown;
+      mes: unknown;
+      centavos: unknown;
+      recibido_el: string;
+    }>`
+      select anio, mes, centavos, recibido_el
+      from receipts
+      where user_id = ${context.userId} and apartment_id = ${id}
+      order by anio, mes
+    `;
+    const history: Tenancy[] = historyRows.map((row) => ({
+      id: row.id,
+      inquilino: row.inquilino ?? "",
+      rentaCentavos: num(row.renta_centavos),
+      inicio: row.inicio || null,
+      fin: row.fin || null,
+      depositoCentavos: num(row.deposito_centavos),
+      depositoFecha: row.deposito_fecha || null,
+      depositoEstado: depositoEstadoOf(row.deposito_estado),
+      depositoNota: row.deposito_nota ?? "",
+    }));
+    const receipts: Receipt[] = receiptRows.map((row) => ({
+      apartmentId: id,
+      anio: num(row.anio) ?? 0,
+      mes: num(row.mes) ?? 0,
+      centavos: num(row.centavos) ?? 0,
+      recibidoEl: row.recibido_el,
+    }));
+    return { ok: true as const, apartment: mapApartment(current), history, receipts, today };
+  });
+
 export const setReceipt = createServerFn({ method: "POST" })
   .validator((raw: unknown) => {
     if (!raw || typeof raw !== "object") throw new Error("Datos inválidos.");
-    const o = raw as { apartmentId?: unknown; received?: unknown };
+    const o = raw as { apartmentId?: unknown; received?: unknown; anio?: unknown; mes?: unknown };
     if (typeof o.apartmentId !== "string" || !isUuid(o.apartmentId)) {
       throw new Error("Departamento inválido.");
     }
-    return { apartmentId: o.apartmentId, received: o.received === true };
+    const anio = o.anio == null ? null : Number(o.anio);
+    const mes = o.mes == null ? null : Number(o.mes);
+    if (anio != null && (!Number.isInteger(anio) || mes == null || !Number.isInteger(mes))) {
+      throw new Error("Mes inválido.");
+    }
+    return { apartmentId: o.apartmentId, received: o.received === true, anio, mes };
   })
   .middleware([authMiddleware])
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const rows = await sql<{ renta_centavos: unknown; ocupado: unknown }>`
-      select renta_centavos, ocupado from apartments
-      where id = ${data.apartmentId} and user_id = ${context.userId}
-    `;
-    const apt = rows[0];
-    if (!apt || !flag(apt.ocupado)) {
-      return { ok: false as const, error: "Ese departamento no está rentado." };
-    }
     const today = mexicoToday();
-    const anio = Number(today.slice(0, 4));
-    const mes = Number(today.slice(5, 7));
+    const anio = data.anio ?? Number(today.slice(0, 4));
+    const mes = data.mes ?? Number(today.slice(5, 7));
+    if (!periodInRange(anio, mes, today)) {
+      return { ok: false as const, error: "Ese mes está fuera del archivo." };
+    }
+    const apartments = await loadStays(sql, context.userId);
+    const tenancies = await loadTenancies(sql, context.userId);
+    const row = rowsForMonth({
+      anio,
+      mes,
+      today,
+      apartments,
+      tenancies,
+      receipts: [],
+    }).find((item) => item.apartmentId === data.apartmentId);
+    if (!row) return { ok: false as const, error: "Ese mes no tiene renta en este departamento." };
     if (!data.received) {
       await sql`
         delete from receipts
@@ -398,15 +642,14 @@ export const setReceipt = createServerFn({ method: "POST" })
       `;
       return { ok: true as const };
     }
-    const centavos = num(apt.renta_centavos) ?? 0;
     await sql`
       insert into receipts (id, user_id, apartment_id, anio, mes, centavos, recibido_el)
       values (
         ${crypto.randomUUID()}, ${context.userId}, ${data.apartmentId},
-        ${anio}, ${mes}, ${centavos}, ${today}
+        ${anio}, ${mes}, ${row.rentaCentavos}, ${today}
       )
       on conflict (user_id, apartment_id, anio, mes)
-      do update set centavos = ${centavos}, recibido_el = ${today}
+      do update set centavos = ${row.rentaCentavos}, recibido_el = ${today}
     `;
     return { ok: true as const };
   });

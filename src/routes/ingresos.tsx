@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Toggle } from "@/components/ui";
-import { setReceipt } from "@/lib/rentals.functions";
-import { formatMoney, monthTitle } from "@/lib/rentals.logic";
+import { listMonth, setReceipt } from "@/lib/rentals.functions";
+import { diasTexto, formatMoney, monthTitle, periodInRange, shiftMonth } from "@/lib/rentals.logic";
 import { useRefreshRentals, useRentals } from "@/lib/use-rentals";
 
 export const Route = createFileRoute("/ingresos")({ component: Ingresos });
@@ -11,20 +13,32 @@ export const Route = createFileRoute("/ingresos")({ component: Ingresos });
 function Ingresos() {
   const { portfolio } = useRentals();
   const refresh = useRefreshRentals();
+  const [cursor, setCursor] = useState<{ anio: number; mes: number } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  if (portfolio.isPending) return <p className="text-muted">Calculando ingresos…</p>;
+  const anio = cursor?.anio ?? portfolio.data?.anio;
+  const mes = cursor?.mes ?? portfolio.data?.mes;
+  const month = useQuery({
+    queryKey: ["month", anio, mes],
+    queryFn: () => listMonth({ data: { anio: anio as number, mes: mes as number } }),
+    enabled: anio != null && mes != null,
+  });
+
+  if (portfolio.isPending || anio == null || mes == null) {
+    return <p className="text-muted">Calculando ingresos…</p>;
+  }
   if (portfolio.isError || !portfolio.data) return <p className="text-muted">No se pudieron cargar.</p>;
-  const { apartments, anio, mes, recibidoAnio } = portfolio.data;
-  const occupied = apartments.filter((apt) => apt.ocupado);
-  const expected = occupied.reduce((sum, apt) => sum + (apt.rentaCentavos ?? 0), 0);
-  const received = occupied
-    .filter((apt) => apt.recibido)
-    .reduce((sum, apt) => sum + (apt.rentaCentavos ?? 0), 0);
+  const today = portfolio.data.today;
+  const atNow = anio === portfolio.data.anio && mes === portfolio.data.mes;
+  const older = shiftMonth(anio, mes, -1);
+  const newer = shiftMonth(anio, mes, 1);
+  const canBack = periodInRange(older.anio, older.mes, today);
+  const canForward = !atNow && periodInRange(newer.anio, newer.mes, today);
+  const view = month.data?.ok ? month.data : null;
 
   async function toggle(id: string, receivedNow: boolean) {
     setBusy(id);
     try {
-      const result = await setReceipt({ data: { apartmentId: id, received: receivedNow } });
+      const result = await setReceipt({ data: { apartmentId: id, received: receivedNow, anio, mes } });
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -40,44 +54,69 @@ function Ingresos() {
   return (
     <div className="space-y-8">
       <header>
-        <p className="text-sm text-muted capitalize">{monthTitle(anio, mes)}</p>
-        <h1 className="mt-2 font-display text-5xl leading-none">{formatMoney(expected)}</h1>
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            aria-label="Mes anterior"
+            disabled={!canBack}
+            className="press grid size-11 place-items-center rounded-full border border-line disabled:opacity-40"
+            onClick={() => setCursor(older)}
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <p className="text-sm text-muted capitalize">{monthTitle(anio, mes)}</p>
+          <button
+            type="button"
+            aria-label="Mes siguiente"
+            disabled={!canForward}
+            className="press grid size-11 place-items-center rounded-full border border-line disabled:opacity-40"
+            onClick={() => setCursor(newer)}
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+        <h1 className="mt-4 font-display text-5xl leading-none">
+          {view ? formatMoney(view.esperado) : "—"}
+        </h1>
         <p className="mt-2 text-sm text-muted">
-          Recibes al mes si todos pagan. Anotado: {formatMoney(received)}. Por cobrar:{" "}
-          {formatMoney(expected - received)}.
+          {view
+            ? `Anotado: ${formatMoney(view.recibido)}. Por cobrar: ${formatMoney(view.porCobrar)}.`
+            : "Cargando el mes…"}
         </p>
-        <p className="mt-1 text-sm text-muted">En {anio} llevas registrado {formatMoney(recibidoAnio)}.</p>
+        <p className="mt-1 text-sm text-muted">
+          En {portfolio.data.anio} llevas registrado {formatMoney(portfolio.data.recibidoAnio)}.
+        </p>
       </header>
-      {occupied.length === 0 ? (
-        <p className="text-sm text-muted">
-          No hay departamentos rentados.{" "}
-          <Link to="/nuevo" className="text-accent">
-            Agrega uno
-          </Link>
-          .
-        </p>
-      ) : (
+      {month.isError || (month.data && !month.data.ok) ? (
+        <p className="text-sm text-muted">No se pudo abrir ese mes.</p>
+      ) : null}
+      {view && view.rows.length === 0 ? (
+        <p className="text-sm text-muted">Nadie debía renta en este mes.</p>
+      ) : null}
+      {view && view.rows.length > 0 ? (
         <ul className="space-y-3">
-          {occupied.map((apt) => (
-            <li key={apt.id} className="rounded-xl border border-line bg-raised px-4 py-2">
+          {view.rows.map((row) => (
+            <li key={row.apartmentId} className="rounded-xl border border-line bg-raised px-4 py-2">
               <Toggle
-                checked={apt.recibido}
-                onCheckedChange={(value) => void toggle(apt.id, value)}
-                label={`${apt.nombre} · ${formatMoney(apt.rentaCentavos)}`}
+                checked={row.recibido}
+                onCheckedChange={(value) => void toggle(row.apartmentId, value)}
+                label={`${row.nombre} · ${formatMoney(row.rentaCentavos)}`}
                 hint={
-                  busy === apt.id
+                  busy === row.apartmentId
                     ? "Guardando…"
-                    : apt.recibido
-                      ? "Marcado como recibido este mes"
-                      : apt.diaPago
-                        ? `Le toca el día ${apt.diaPago}`
-                        : "Sin día de pago"
+                    : row.diasMora
+                      ? `Lleva ${diasTexto(row.diasMora)} sin pagar`
+                      : row.recibido
+                        ? "Marcado como recibido"
+                        : row.inquilino
+                          ? row.inquilino
+                          : "Sin anotar"
                 }
               />
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
     </div>
   );
 }

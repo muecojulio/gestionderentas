@@ -4,8 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApartmentForm } from "@/components/apartment-form";
 import { Button, ConfirmDialog } from "@/components/ui";
+import { downloadApartmentExcel } from "@/lib/excel-apartment";
 import { deleteApartment, listHistory, saveApartment, vacateApartment } from "@/lib/rentals.functions";
-import { formatMoney, longDate, tenureLabel, type ApartmentInput } from "@/lib/rentals.logic";
+import { DEPOSITO_LABEL, formatMoney, longDate, tenureLabel, type ApartmentInput } from "@/lib/rentals.logic";
 import { useRefreshRentals, useRentals } from "@/lib/use-rentals";
 
 export const Route = createFileRoute("/depto/$id")({ component: Detail });
@@ -24,6 +25,7 @@ function Detail() {
   const [warning, setWarning] = useState<string | null>(null);
   const [vacateOpen, setVacateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const apt = portfolio.data?.apartments.find((item) => item.id === id);
 
   if (portfolio.isPending) return <p className="text-muted">Cargando ficha…</p>;
@@ -159,6 +161,18 @@ function Detail() {
                   }
                 />
                 {apt.notas ? <p className="text-sm text-muted">{apt.notas}</p> : null}
+                <Row
+                  label="Depósito"
+                  value={
+                    apt.depositoCentavos == null
+                      ? "Sin depósito"
+                      : `${formatMoney(apt.depositoCentavos)} · ${
+                          apt.depositoEstado ? DEPOSITO_LABEL[apt.depositoEstado] : "En tu poder"
+                        }`
+                  }
+                />
+                {apt.depositoFecha ? <Row label="Dejó el depósito" value={longDate(apt.depositoFecha)} /> : null}
+                {apt.depositoNota ? <p className="text-sm text-muted">{apt.depositoNota}</p> : null}
               </>
             ) : (
               <p className="text-sm text-muted">Libre. Puedes registrar al siguiente inquilino.</p>
@@ -176,6 +190,14 @@ function Detail() {
                       {stay.inicio ? longDate(stay.inicio) : "?"} — {stay.fin ? longDate(stay.fin) : "?"} ·{" "}
                       {formatMoney(stay.rentaCentavos)}
                     </p>
+                    <p className="text-muted">
+                      Depósito{" "}
+                      {stay.depositoCentavos == null
+                        ? "no registrado"
+                        : `${formatMoney(stay.depositoCentavos)} · ${
+                            stay.depositoEstado ? DEPOSITO_LABEL[stay.depositoEstado] : "en tu poder"
+                          }`}
+                    </p>
                   </li>
                 ))}
               </ul>
@@ -184,6 +206,20 @@ function Detail() {
 
           <div className="flex flex-col gap-2">
             <Button onClick={() => setEditing(true)}>Editar datos</Button>
+            <Button
+              tone="quiet"
+              disabled={exporting}
+              onClick={() => {
+                setExporting(true);
+                void downloadApartmentExcel(id)
+                  .catch((error: unknown) => {
+                    toast.error(error instanceof Error ? error.message : "No se pudo crear el Excel.");
+                  })
+                  .finally(() => setExporting(false));
+              }}
+            >
+              {exporting ? "Preparando Excel…" : "Exportar Excel"}
+            </Button>
             {apt.ocupado ? (
               <Button tone="quiet" onClick={() => setVacateOpen(true)}>
                 El inquilino salió
@@ -200,7 +236,7 @@ function Detail() {
         open={vacateOpen}
         onOpenChange={setVacateOpen}
         title="¿El inquilino ya salió?"
-        body="Se borran su nombre, la renta, el contrato, el día de pago, las notas de la estancia y los montos de luz y agua. Se conservan la foto y los números de medidor de luz y de agua."
+        body="Se borran su nombre, la renta, el contrato, el día de pago, las notas y los montos de luz y agua. El depósito queda en el historial de esta estancia. Se conservan la foto y los números de medidor."
         confirmLabel="Borrar datos del inquilino"
         pending={pending}
         onConfirm={() => void vacate()}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Building2 } from "lucide-react";
-import type { Apartment, ApartmentInput } from "@/lib/rentals.logic";
+import type { Apartment, ApartmentInput, DepositoEstado } from "@/lib/rentals.logic";
 import { centavosToInput, pesosToCentavos } from "@/lib/rentals.logic";
 import { compressPhoto } from "@/components/photo";
 import { Button, Field, TextArea, TextInput, Toggle } from "@/components/ui";
@@ -39,6 +39,10 @@ export function ApartmentForm({
   const [contratoFin, setContratoFin] = useState(initial?.contratoFin ?? "");
   const [ingreso, setIngreso] = useState(initial?.ingreso ?? "");
   const [notas, setNotas] = useState(initial?.notas ?? "");
+  const [deposito, setDeposito] = useState(centavosToInput(initial?.depositoCentavos ?? null));
+  const [depositoFecha, setDepositoFecha] = useState(initial?.depositoFecha ?? "");
+  const [depositoEstado, setDepositoEstado] = useState<DepositoEstado | "">(initial?.depositoEstado ?? "");
+  const [depositoNota, setDepositoNota] = useState(initial?.depositoNota ?? "");
   const [forzar, setForzar] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -70,6 +74,11 @@ export function ApartmentForm({
       setLocalError("El monto de renta no es válido.");
       return;
     }
+    const depositoCentavos = money(deposito);
+    if (deposito.trim() && depositoCentavos == null) {
+      setLocalError("El monto del depósito no es válido.");
+      return;
+    }
     setLocalError(null);
     onSubmit({
       id: initial?.id,
@@ -93,6 +102,10 @@ export function ApartmentForm({
       ocupado,
       notas,
       forzar,
+      depositoCentavos,
+      depositoFecha: depositoFecha || null,
+      depositoEstado: depositoEstado || null,
+      depositoNota,
     });
   }
 
@@ -255,6 +268,54 @@ export function ApartmentForm({
             </div>
             <Field label="Notas de esta estancia" hint="Se borran cuando el inquilino sale">
               <TextArea value={notas} onChange={(event) => setNotas(event.target.value)} />
+            </Field>
+            <h3 className="font-display text-xl">Depósito en garantía</h3>
+            <p className="text-sm text-muted">Queda en el historial de esta estancia cuando el inquilino sale.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Monto" hint="Pesos">
+                <TextInput
+                  inputMode="decimal"
+                  value={deposito}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setDeposito(next);
+                    if (next.trim() && !depositoEstado) setDepositoEstado("en_poder");
+                  }}
+                  placeholder="12000"
+                />
+              </Field>
+              <Field label="Fecha en que lo dejó">
+                <TextInput
+                  type="date"
+                  value={depositoFecha}
+                  onChange={(event) => setDepositoFecha(event.target.value)}
+                />
+              </Field>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ["en_poder", "En tu poder"],
+                  ["devuelto", "Devuelto"],
+                  ["retenido", "Retenido"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={
+                    depositoEstado === id
+                      ? "press h-11 rounded-xl border border-accent bg-accent/10 px-3 text-sm text-fg"
+                      : "press h-11 rounded-xl border border-line px-3 text-sm text-muted"
+                  }
+                  onClick={() => setDepositoEstado(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <Field label="Nota del depósito" hint="Por ejemplo, si retuviste una parte">
+              <TextArea value={depositoNota} onChange={(event) => setDepositoNota(event.target.value)} />
             </Field>
           </div>
         ) : null}

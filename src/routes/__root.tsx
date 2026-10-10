@@ -1,10 +1,8 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { createRootRoute, HeadContent, Navigate, Outlet, Scripts } from "@tanstack/react-router";
-import { useRouterState } from "@tanstack/react-router";
+import { useState, type ReactNode } from "react";
+import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth/provider";
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { Frame } from "@/components/shell";
 import appCss from "../styles.css?url";
@@ -64,9 +62,9 @@ function RootComponent() {
         <PreviewHostBridge />
         <AuthProvider>
           <QueryClientProvider client={client}>
-            <Gate>
+            <Frame>
               <Outlet />
-            </Gate>
+            </Frame>
             <Toaster theme="dark" position="top-center" />
           </QueryClientProvider>
         </AuthProvider>
@@ -74,25 +72,4 @@ function RootComponent() {
       </body>
     </html>
   );
-}
-
-function Gate({ children }: { children: ReactNode }) {
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const bare = pathname === "/login" || pathname === "/privacidad";
-  const { user, isPending } = useCurrentUserState();
-  const [ready, setReady] = useState(false);
-  useEffect(() => setReady(true), []);
-  if (bare) return children;
-  if (!ready || isPending) {
-    return (
-      <main className="grid min-h-dvh place-items-center px-6">
-        <div className="text-center">
-          <p className="font-display text-4xl">Gestión</p>
-          <p className="mt-2 text-sm text-muted">de rentas</p>
-        </div>
-      </main>
-    );
-  }
-  if (!user) return <Navigate to="/login" />;
-  return <Frame>{children}</Frame>;
 }

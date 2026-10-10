@@ -7,6 +7,7 @@ import {
   rentMora,
   rowsForMonth,
   stripControlChars,
+  tenureLabel,
   type Apartment,
 } from "./rentals.logic.ts";
 
@@ -154,6 +155,116 @@ describe("computeAlerts", () => {
     const alerts = computeAlerts([apt({ id: "11111111-1111-1111-1111-111111111111", nombre: "Roma" })], "2026-10-09");
     assert.equal(alerts.some((alert) => alert.kind === "mora"), true);
     assert.equal(alerts.some((alert) => alert.kind === "renta"), false);
+  });
+});
+
+describe("tenureLabel (cuánto lleva rentando)", () => {
+  it("suma años y meses desde el ingreso", () => {
+    assert.equal(tenureLabel("2024-03-15", "2026-10-10"), "2 años y 6 meses");
+    assert.equal(tenureLabel("2025-10-10", "2026-10-10"), "1 año");
+    assert.equal(tenureLabel("2026-08-10", "2026-10-10"), "2 meses");
+    assert.equal(tenureLabel("2026-10-02", "2026-10-10"), "8 días");
+  });
+
+  it("dice cuando no hay fecha o el ingreso todavía no llega", () => {
+    assert.equal(tenureLabel(null, "2026-10-10"), "Sin fecha de ingreso");
+    assert.equal(tenureLabel("2026-12-01", "2026-10-10"), "El ingreso todavía no llega");
+  });
+});
+
+describe("computeAlerts: recordatorio de renta", () => {
+  const id = "11111111-1111-1111-1111-111111111111";
+
+  it("avisa un día antes de que toque la renta", () => {
+    const alerts = computeAlerts([apt({ id, nombre: "Roma", diaPago: 10 })], "2026-10-09");
+    const renta = alerts.find((alert) => alert.kind === "renta");
+    assert.equal(renta?.title, "Mañana toca la renta de Roma");
+    assert.match(renta?.detail ?? "", /Ana López/);
+  });
+
+  it("avisa el mismo día de pago", () => {
+    const alerts = computeAlerts([apt({ id, nombre: "Roma", diaPago: 10 })], "2026-10-10");
+    assert.equal(
+      alerts.find((alert) => alert.kind === "renta")?.title,
+      "Hoy toca la renta de Roma",
+    );
+  });
+
+  it("no avisa con más de un día de anticipación", () => {
+    const alerts = computeAlerts([apt({ id, nombre: "Roma", diaPago: 12 })], "2026-10-10");
+    assert.equal(alerts.some((alert) => alert.kind === "renta"), false);
+  });
+
+  it("no recuerda la renta si ya está anotada como recibida", () => {
+    const alerts = computeAlerts(
+      [apt({ id, nombre: "Roma", diaPago: 10, recibido: true })],
+      "2026-10-09",
+    );
+    assert.equal(alerts.some((alert) => alert.kind === "renta"), false);
+  });
+
+  it("sí recuerda la renta del mes siguiente aunque este mes ya esté cobrado", () => {
+    // Hoy 31 de octubre y paga el día 1: el cobro anotado es el de octubre, así
+    // que el recordatorio de noviembre sigue en pie.
+    const alerts = computeAlerts(
+      [apt({ id, nombre: "Roma", diaPago: 1, recibido: true })],
+      "2026-10-31",
+    );
+    assert.equal(
+      alerts.find((alert) => alert.kind === "renta")?.title,
+      "Mañana toca la renta de Roma",
+    );
+  });
+});
+
+describe("computeAlerts: vencimiento del contrato", () => {
+  const id = "11111111-1111-1111-1111-111111111111";
+
+  it("avisa desde 35 días antes de que venza", () => {
+    const alerts = computeAlerts(
+      [apt({ id, nombre: "Roma", recibido: true, contratoFin: "2026-11-14" })],
+      "2026-10-10",
+    );
+    const contrato = alerts.find((alert) => alert.kind === "contrato");
+    assert.equal(contrato?.title, "El contrato de Roma está por vencer");
+    assert.equal(contrato?.detail, "Faltan 35 días · vence el 14 de noviembre de 2026");
+  });
+
+  it("sigue avisando cada día hasta que vence", () => {
+    const alerts = computeAlerts(
+      [apt({ id, nombre: "Roma", recibido: true, contratoFin: "2026-11-14" })],
+      "2026-11-14",
+    );
+    assert.equal(
+      alerts.find((alert) => alert.kind === "contrato")?.title,
+      "Hoy vence el contrato de Roma",
+    );
+  });
+
+  it("no avisa con 36 días ni después de que venció", () => {
+    const base = { id, nombre: "Roma", recibido: true } as const;
+    assert.equal(
+      computeAlerts([apt({ ...base, contratoFin: "2026-11-15" })], "2026-10-10").some(
+        (alert) => alert.kind === "contrato",
+      ),
+      false,
+    );
+    assert.equal(
+      computeAlerts([apt({ ...base, contratoFin: "2026-10-09" })], "2026-10-10").some(
+        (alert) => alert.kind === "contrato",
+      ),
+      false,
+    );
+  });
+
+  it("no avisa de un departamento libre", () => {
+    assert.deepEqual(
+      computeAlerts(
+        [apt({ id, nombre: "Roma", ocupado: false, contratoFin: "2026-11-01" })],
+        "2026-10-10",
+      ),
+      [],
+    );
   });
 });
 

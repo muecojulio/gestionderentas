@@ -4,3 +4,4 @@ screenshots
 dist
 *.log
 .grok/og-pending
+.tanstack

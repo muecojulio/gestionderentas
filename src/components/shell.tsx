@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Bell,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { UserButton } from "@/lib/auth/gates";
 import { computeAlerts } from "@/lib/rentals.logic";
+import { useAlertNotifications } from "@/lib/use-alert-notifications";
 import { useDataHealth, useRentals } from "@/lib/use-rentals";
 import { cn } from "@/lib/utils";
 
@@ -46,23 +47,15 @@ export function Frame({ children }: { children: ReactNode }) {
         : [],
     [portfolio.data, today, holidays.data],
   );
-
-  useEffect(() => {
-    if (!alerts.length) return;
-    if (typeof Notification === "undefined") return;
-    if (Notification.permission !== "granted") return;
-    if (localStorage.getItem("gr-notif") !== "on") return;
-    for (const alert of alerts) {
-      const key = `gr-pushed:${alert.key}`;
-      if (localStorage.getItem(key)) continue;
-      try {
-        new Notification(alert.title, { body: alert.detail, tag: alert.key });
-        localStorage.setItem(key, "1");
-      } catch {
-        /* el navegador puede bloquear el aviso */
-      }
-    }
-  }, [alerts]);
+  const refetch = portfolio.refetch;
+  // Al volver a la pestaña (o cada pocos minutos) se piden los datos otra vez:
+  // sin eso, una pestaña abierta de un día para otro seguiría calculando los
+  // avisos con la fecha de ayer.
+  const onWake = useCallback(() => {
+    void refetch();
+  }, [refetch]);
+  // Un día antes de la renta y desde 35 días antes del vencimiento del contrato.
+  useAlertNotifications(alerts, today, onWake);
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-6xl">

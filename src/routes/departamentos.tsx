@@ -1,15 +1,23 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Building2, Download, Store } from "lucide-react";
+import { Building2, Download, LogOut, Store } from "lucide-react";
 import { toast } from "sonner";
 import { Chip, HScroller } from "@/components/hscroller";
 import { Combobox } from "@/components/combobox";
 import { SwipeableRow } from "@/components/swipeable";
 import { DataError } from "@/components/data-error";
-import { Button, Empty } from "@/components/ui";
+import { Button, ConfirmDialog, Empty } from "@/components/ui";
 import { downloadApartmentExcel } from "@/lib/excel-apartment";
-import { formatMoney, rentMora, diasTexto, TIPO_LABEL, type Apartment, type PropertyTipo } from "@/lib/rentals.logic";
-import { useRentals } from "@/lib/use-rentals";
+import { vacateApartment } from "@/lib/rentals.api";
+import {
+  formatMoney,
+  rentMora,
+  diasTexto,
+  TIPO_LABEL,
+  type Apartment,
+  type PropertyTipo,
+} from "@/lib/rentals.logic";
+import { useRefreshRentals, useRentals } from "@/lib/use-rentals";
 
 export const Route = createFileRoute("/departamentos")({ component: Departamentos });
 
@@ -49,10 +57,14 @@ function matchesTipo(apt: Apartment, tipo: TipoFilter): boolean {
 
 function Departamentos() {
   const { portfolio } = useRentals();
+  const refresh = useRefreshRentals();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<Filter>("todos");
   const [tipoFilter, setTipoFilter] = useState<TipoFilter>("todos");
   const [busy, setBusy] = useState<string | null>(null);
+  // "El inquilino salió" directo desde la lista, sin entrar a la ficha.
+  const [vacateTarget, setVacateTarget] = useState<Apartment | null>(null);
+  const [vacatePending, setVacatePending] = useState(false);
 
   const options = useMemo(
     () =>
@@ -98,7 +110,9 @@ function Departamentos() {
     );
   }
   const { apartments, today } = portfolio.data;
-  const visible = apartments.filter((apt) => matches(apt, filter, today) && matchesTipo(apt, tipoFilter));
+  const visible = apartments.filter(
+    (apt) => matches(apt, filter, today) && matchesTipo(apt, tipoFilter),
+  );
   const counts: Record<Filter, number> = {
     todos: apartments.length,
     rentados: apartments.filter((apt) => apt.ocupado).length,
@@ -122,21 +136,58 @@ function Departamentos() {
     }
   }
 
-  const exportAction = (apt: Apartment) => (
-    <button
-      type="button"
-      aria-label={`Exportar Excel de ${apt.nombre}`}
-      disabled={busy === apt.id}
-      className="press flex h-full items-center gap-1.5 bg-accent px-4 text-sm font-medium text-accent-fg disabled:opacity-50"
-      onClick={() => void onExport(apt.id)}
-    >
-      {busy === apt.id ? (
-        <span className="size-4 animate-spin rounded-full border-2 border-accent-fg/40 border-t-accent-fg" aria-hidden />
-      ) : (
-        <Download size={16} aria-hidden />
-      )}
-      Excel
-    </button>
+  /** Borra los datos del inquilino; la foto y los medidores se conservan. */
+  async function confirmVacate() {
+    if (!vacateTarget) return;
+    const id = vacateTarget.id;
+    setVacatePending(true);
+    try {
+      const result = await vacateApartment(id);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      setVacateTarget(null);
+      refresh();
+      toast.success("El inquilino salió. La foto y los medidores siguen aquí.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo actualizar.");
+    } finally {
+      setVacatePending(false);
+    }
+  }
+
+  const rowActions = (apt: Apartment) => (
+    <>
+      {apt.ocupado ? (
+        <button
+          type="button"
+          aria-label={`Marcar que el inquilino de ${apt.nombre} ya salió`}
+          className="press flex h-full items-center gap-1.5 bg-accent/20 px-4 text-sm font-medium text-accent"
+          onClick={() => setVacateTarget(apt)}
+        >
+          <LogOut size={16} aria-hidden />
+          Salió
+        </button>
+      ) : null}
+      <button
+        type="button"
+        aria-label={`Exportar Excel de ${apt.nombre}`}
+        disabled={busy === apt.id}
+        className="press flex h-full items-center gap-1.5 bg-accent px-4 text-sm font-medium text-accent-fg disabled:opacity-50"
+        onClick={() => void onExport(apt.id)}
+      >
+        {busy === apt.id ? (
+          <span
+            className="size-4 animate-spin rounded-full border-2 border-accent-fg/40 border-t-accent-fg"
+            aria-hidden
+          />
+        ) : (
+          <Download size={16} aria-hidden />
+        )}
+        Excel
+      </button>
+    </>
   );
 
   return (
@@ -144,7 +195,14 @@ function Departamentos() {
       <div className="flex items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-4xl">Propiedades</h1>
-          <p className="mt-1 text-sm text-muted">{apartments.length} en tu cartera · {tipoCounts.departamento} deptos · {tipoCounts.accesoria} accesorias</p>
+          <p className="mt-1 text-sm text-muted">
+            {apartments.length} en tu cartera · {tipoCounts.departamento} deptos ·{" "}
+            {tipoCounts.accesoria} accesorias
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            Desliza una propiedad (o pulsa ⋯) para marcar que el inquilino salió y para exportar su
+            Excel.
+          </p>
         </div>
         <Link to="/nuevo">
           <Button>Nuevo</Button>
@@ -201,10 +259,7 @@ function Departamentos() {
             const late = apt.ocupado ? rentMora(apt, today) : null;
             return (
               <li key={apt.id}>
-                <SwipeableRow
-                  actions={exportAction(apt)}
-                  actionsLabel={`Acciones de ${apt.nombre}`}
-                >
+                <SwipeableRow actions={rowActions(apt)} actionsLabel={`Acciones de ${apt.nombre}`}>
                   <Link
                     to="/depto/$id"
                     params={{ id: apt.id }}
@@ -227,7 +282,9 @@ function Departamentos() {
                         ) : (
                           <Building2 size={12} className="shrink-0 text-muted" aria-hidden />
                         )}
-                        <span className="truncate text-[11px] uppercase tracking-wide text-muted">{TIPO_LABEL[apt.tipo]}</span>
+                        <span className="truncate text-[11px] uppercase tracking-wide text-muted">
+                          {TIPO_LABEL[apt.tipo]}
+                        </span>
                       </span>
                       <span className="block truncate font-medium">{apt.nombre}</span>
                       <span className="block truncate text-sm text-muted">
@@ -247,6 +304,17 @@ function Departamentos() {
           })}
         </ul>
       )}
+      <ConfirmDialog
+        open={vacateTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setVacateTarget(null);
+        }}
+        title={vacateTarget ? `¿${vacateTarget.inquilino || "El inquilino"} ya salió?` : ""}
+        body="Se borran su nombre, la renta, el contrato, el día de pago, las notas y los montos de luz y agua. El depósito queda en el historial de esa estancia. Se conservan la foto y los números de medidor."
+        confirmLabel="Borrar datos del inquilino"
+        pending={vacatePending}
+        onConfirm={() => void confirmVacate()}
+      />
     </div>
   );
 }

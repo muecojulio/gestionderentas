@@ -540,7 +540,11 @@ export function computeAlerts(
       });
     } else if (apt.diaPago) {
       const { due, daysUntil } = upcomingDue(apt.diaPago, todayIso);
-      if (daysUntil === 0 || daysUntil === 1) {
+      // Si la renta de este mes ya está anotada como recibida, recordarla es
+      // ruido. Solo se descarta cuando el vencimiento cae en el mes de hoy:
+      // `recibido` se refiere a este mes, no al siguiente.
+      const yaCobrada = apt.recibido && due.slice(0, 7) === todayIso.slice(0, 7);
+      if (!yaCobrada && (daysUntil === 0 || daysUntil === 1)) {
         const holiday = holidayOn.get(due);
         const who = apt.inquilino || "El inquilino";
         alerts.push({

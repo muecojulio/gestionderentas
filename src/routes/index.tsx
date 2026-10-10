@@ -1,7 +1,8 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
+  BellRing,
   Building2,
   CalendarDays,
   Store,
@@ -12,6 +13,12 @@ import { AnimatedCounter, ProgressRing } from "@/components/animated-counter";
 import { EdgeFades } from "@/components/hscroller";
 import { DataError } from "@/components/data-error";
 import { Button, Empty } from "@/components/ui";
+import {
+  CONTRATO_AVISO_DIAS,
+  activateNotifications,
+  notifState,
+  type NotifState,
+} from "@/lib/notifications";
 // Rentas solo en MXN — sin conversión a USD
 import {
   computeAlerts,
@@ -98,6 +105,8 @@ function Home() {
           label={`Cobrado este mes: ${formatMoney(received)} de ${formatMoney(expected)}`}
         />
       </header>
+
+      <NotifPrompt occupied={occupied.length} />
 
       {alerts.length > 0 ? (
         <section aria-label="Avisos" className="space-y-2">
@@ -204,5 +213,53 @@ function Home() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Los avisos solo existen si el navegador dio permiso. Se ofrece aquí, a la
+ * vista, la primera vez (y se explica cómo destrabarlos si quedaron bloqueados).
+ */
+function NotifPrompt({ occupied }: { occupied: number }) {
+  const [state, setState] = useState<NotifState>("unsupported");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setState(notifState());
+  }, []);
+  if (occupied === 0 || (state !== "default" && state !== "blocked")) return null;
+
+  async function activate() {
+    setBusy(true);
+    try {
+      await activateNotifications();
+      setState(notifState());
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rise flex flex-col gap-3 rounded-xl border border-line bg-raised p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="flex items-center gap-1.5 text-sm font-medium">
+          <BellRing size={15} aria-hidden className="text-accent" />
+          Avisos en tu teléfono
+        </p>
+        <p className="mt-0.5 text-xs text-muted">
+          {state === "blocked"
+            ? "El navegador los bloqueó. En Avisos está cómo activarlos (en iPhone, con la app instalada)."
+            : `Un día antes de cada renta y desde ${CONTRATO_AVISO_DIAS} días antes de que venza un contrato.`}
+        </p>
+      </div>
+      {state === "default" ? (
+        <Button tone="quiet" className="shrink-0" onClick={() => void activate()} disabled={busy}>
+          {busy ? "Un momento…" : "Activar avisos"}
+        </Button>
+      ) : (
+        <Link to="/avisos" className="shrink-0">
+          <Button tone="quiet">Ver avisos</Button>
+        </Link>
+      )}
+    </section>
   );
 }

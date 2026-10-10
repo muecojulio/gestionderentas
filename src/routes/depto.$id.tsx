@@ -2,10 +2,19 @@ import { useState, type FormEvent } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Accordion } from "@/components/accordion";
 import { ApartmentForm } from "@/components/apartment-form";
-import { Button, ConfirmDialog, Field, TextInput } from "@/components/ui";
+import { Tabs } from "@/components/tabs";
+import { Button, ConfirmDialog, Field, TextInput, type ButtonStatus } from "@/components/ui";
 import { downloadApartmentExcel } from "@/lib/excel-apartment";
-import { applyIncrease, deleteApartment, listAdjustments, listHistory, saveApartment, vacateApartment } from "@/lib/rentals.functions";
+import {
+  applyIncrease,
+  deleteApartment,
+  listAdjustments,
+  listHistory,
+  saveApartment,
+  vacateApartment,
+} from "@/lib/rentals.functions";
 import {
   DEPOSITO_LABEL,
   diasTexto,
@@ -19,6 +28,7 @@ import {
   type ApartmentInput,
   type RentAdjustment,
 } from "@/lib/rentals.logic";
+import { useActionStatus } from "@/lib/use-action-status";
 import { useRefreshRentals, useRentals } from "@/lib/use-rentals";
 
 export const Route = createFileRoute("/depto/$id")({ component: Detail });
@@ -37,10 +47,22 @@ function Detail() {
   const [warning, setWarning] = useState<string | null>(null);
   const [vacateOpen, setVacateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const exportAction = useActionStatus();
   const apt = portfolio.data?.apartments.find((item) => item.id === id);
 
-  if (portfolio.isPending) return <p className="text-muted">Cargando ficha…</p>;
+  if (portfolio.isPending) {
+    return (
+      <div className="mx-auto max-w-xl space-y-6" aria-busy="true" aria-live="polite">
+        <div className="skeleton aspect-video w-full" />
+        <div className="space-y-2">
+          <div className="skeleton h-4 w-20" />
+          <div className="skeleton h-10 w-48" />
+        </div>
+        <div className="skeleton h-11 w-full" />
+        <div className="skeleton h-64 w-full" />
+      </div>
+    );
+  }
   if (!apt) {
     return (
       <div className="space-y-3">
@@ -112,7 +134,13 @@ function Detail() {
   return (
     <div className="mx-auto max-w-xl space-y-6">
       {apt.foto ? (
-        <img src={apt.foto} alt="" className="aspect-video w-full rounded-xl object-cover" />
+        <div className="overflow-hidden rounded-xl border border-line">
+          <img
+            src={apt.foto}
+            alt=""
+            className="aspect-video w-full object-cover transition-transform duration-300 hover:scale-[1.03]"
+          />
+        </div>
       ) : null}
       <div>
         <p className="text-sm text-muted">{apt.ocupado ? "Rentado" : "Libre"}</p>
@@ -129,110 +157,154 @@ function Detail() {
         />
       ) : (
         <>
-          <section className="space-y-3 rounded-xl border border-line bg-raised p-4">
-            <h2 className="font-display text-2xl">Ficha técnica</h2>
-            <Row label="Medidor de luz" value={apt.medidorLuz || "Sin número"} />
-            <Row label="Medidor de agua" value={apt.medidorAgua || "Sin número"} />
-            <Row
-              label="Luz"
-              value={
-                apt.luzDia
-                  ? `Día ${apt.luzDia} · ${formatMoney(apt.luzCentavos)}`
-                  : "Sin fecha de pago"
-              }
-            />
-            <Row
-              label="Agua"
-              value={
-                apt.aguaDia
-                  ? `Día ${apt.aguaDia} · ${formatMoney(apt.aguaCentavos)}`
-                  : "Sin fecha de pago"
-              }
-            />
-            {apt.notaServicios ? <p className="text-sm text-muted">{apt.notaServicios}</p> : null}
-          </section>
+          <Tabs
+            ariaLabel="Secciones del departamento"
+            tabs={[
+              {
+                id: "ficha",
+                label: "Ficha",
+                content: (
+                  <div className="space-y-3">
+                    <section className="space-y-3 rounded-xl border border-line bg-raised p-4">
+                      <h2 className="font-display text-2xl">Ficha técnica</h2>
+                      <Row label="Medidor de luz" value={apt.medidorLuz || "Sin número"} />
+                      <Row label="Medidor de agua" value={apt.medidorAgua || "Sin número"} />
+                      <Row
+                        label="Luz"
+                        value={
+                          apt.luzDia
+                            ? `Día ${apt.luzDia} · ${formatMoney(apt.luzCentavos)}`
+                            : "Sin fecha de pago"
+                        }
+                      />
+                      <Row
+                        label="Agua"
+                        value={
+                          apt.aguaDia
+                            ? `Día ${apt.aguaDia} · ${formatMoney(apt.aguaCentavos)}`
+                            : "Sin fecha de pago"
+                        }
+                      />
+                      {apt.notaServicios ? (
+                        <p className="text-sm text-muted">{apt.notaServicios}</p>
+                      ) : null}
+                    </section>
 
-          <section className="space-y-3 rounded-xl border border-line bg-raised p-4">
-            <h2 className="font-display text-2xl">Estancia</h2>
-            {apt.ocupado ? (
-              <>
-                <Row label="Inquilino" value={apt.inquilino || "Sin nombre"} />
-                <Row label="Teléfono" value={apt.telefono || "—"} />
-                <Row label="Renta" value={formatMoney(apt.rentaCentavos)} />
-                <Row label="Día de pago" value={apt.diaPago ? `Día ${apt.diaPago}` : "—"} />
-                <Row label="Ingresó" value={apt.ingreso ? longDate(apt.ingreso) : "—"} />
-                <Row label="Lleva rentando" value={tenureLabel(apt.ingreso ?? apt.contratoInicio, today)} />
-                <Row
-                  label="Contrato"
-                  value={
-                    apt.contratoInicio || apt.contratoFin
-                      ? `${apt.contratoInicio ? longDate(apt.contratoInicio) : "?"} → ${
-                          apt.contratoFin ? longDate(apt.contratoFin) : "?"
-                        }`
-                      : "Sin fechas"
-                  }
-                />
-                {apt.notas ? <p className="text-sm text-muted">{apt.notas}</p> : null}
-                <Row
-                  label="Depósito"
-                  value={
-                    apt.depositoCentavos == null
-                      ? "Sin depósito"
-                      : `${formatMoney(apt.depositoCentavos)} · ${
-                          apt.depositoEstado ? DEPOSITO_LABEL[apt.depositoEstado] : "En tu poder"
-                        }`
-                  }
-                />
-                {apt.depositoFecha ? <Row label="Dejó el depósito" value={longDate(apt.depositoFecha)} /> : null}
-                {apt.depositoNota ? <p className="text-sm text-muted">{apt.depositoNota}</p> : null}
-              </>
-            ) : (
-              <p className="text-sm text-muted">Libre. Puedes registrar al siguiente inquilino.</p>
-            )}
-          </section>
+                    <section className="space-y-3 rounded-xl border border-line bg-raised p-4">
+                      <h2 className="font-display text-2xl">Estancia</h2>
+                      {apt.ocupado ? (
+                        <>
+                          <Row label="Inquilino" value={apt.inquilino || "Sin nombre"} />
+                          <Row label="Teléfono" value={apt.telefono || "—"} />
+                          <Row label="Renta" value={formatMoney(apt.rentaCentavos)} />
+                          <Row label="Día de pago" value={apt.diaPago ? `Día ${apt.diaPago}` : "—"} />
+                          <Row label="Ingresó" value={apt.ingreso ? longDate(apt.ingreso) : "—"} />
+                          <Row
+                            label="Lleva rentando"
+                            value={tenureLabel(apt.ingreso ?? apt.contratoInicio, today)}
+                          />
+                          <Row
+                            label="Contrato"
+                            value={
+                              apt.contratoInicio || apt.contratoFin
+                                ? `${apt.contratoInicio ? longDate(apt.contratoInicio) : "?"} → ${
+                                    apt.contratoFin ? longDate(apt.contratoFin) : "?"
+                                  }`
+                                : "Sin fechas"
+                            }
+                          />
+                          {apt.notas ? <p className="text-sm text-muted">{apt.notas}</p> : null}
+                          <Row
+                            label="Depósito"
+                            value={
+                              apt.depositoCentavos == null
+                                ? "Sin depósito"
+                                : `${formatMoney(apt.depositoCentavos)} · ${
+                                    apt.depositoEstado ? DEPOSITO_LABEL[apt.depositoEstado] : "En tu poder"
+                                  }`
+                            }
+                          />
+                          {apt.depositoFecha ? (
+                            <Row label="Dejó el depósito" value={longDate(apt.depositoFecha)} />
+                          ) : null}
+                          {apt.depositoNota ? (
+                            <p className="text-sm text-muted">{apt.depositoNota}</p>
+                          ) : null}
+                        </>
+                      ) : (
+                        <p className="text-sm text-muted">
+                          Libre. Puedes registrar al siguiente inquilino.
+                        </p>
+                      )}
+                    </section>
 
-          {apt.ocupado ? <IncreaseCard apt={apt} today={today} /> : null}
-
-          {history.data && history.data.length > 0 ? (
-            <section className="space-y-2">
-              <h2 className="font-display text-2xl">Estancias anteriores</h2>
-              <ul className="space-y-2">
-                {history.data.map((stay) => (
-                  <li key={stay.id} className="rounded-xl border border-line px-4 py-3 text-sm">
-                    <p>{stay.inquilino || "Sin nombre"}</p>
-                    <p className="text-muted">
-                      {stay.inicio ? longDate(stay.inicio) : "?"} — {stay.fin ? longDate(stay.fin) : "?"} ·{" "}
-                      {formatMoney(stay.rentaCentavos)}
-                    </p>
-                    <p className="text-muted">
-                      Depósito{" "}
-                      {stay.depositoCentavos == null
-                        ? "no registrado"
-                        : `${formatMoney(stay.depositoCentavos)} · ${
-                            stay.depositoEstado ? DEPOSITO_LABEL[stay.depositoEstado] : "en tu poder"
-                          }`}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
+                    {apt.ocupado ? <IncreaseCard apt={apt} today={today} /> : null}
+                  </div>
+                ),
+              },
+              {
+                id: "historial",
+                label: "Historial",
+                content: (
+                  <div className="space-y-2">
+                    {history.data && history.data.length > 0 ? (
+                      <Accordion
+                        title={`Estancias anteriores (${history.data.length})`}
+                        defaultOpen={false}
+                      >
+                        <ul className="space-y-2">
+                          {history.data.map((stay) => (
+                            <li key={stay.id} className="rounded-xl border border-line px-4 py-3 text-sm">
+                              <p>{stay.inquilino || "Sin nombre"}</p>
+                              <p className="text-muted">
+                                {stay.inicio ? longDate(stay.inicio) : "?"} —{" "}
+                                {stay.fin ? longDate(stay.fin) : "?"} · {formatMoney(stay.rentaCentavos)}
+                              </p>
+                              <p className="text-muted">
+                                Depósito{" "}
+                                {stay.depositoCentavos == null
+                                  ? "no registrado"
+                                  : `${formatMoney(stay.depositoCentavos)} · ${
+                                      stay.depositoEstado
+                                        ? DEPOSITO_LABEL[stay.depositoEstado]
+                                        : "en tu poder"
+                                    }`}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                      </Accordion>
+                    ) : (
+                      <p className="text-sm text-muted">
+                        Todavía no hay estancias anteriores en este departamento.
+                      </p>
+                    )}
+                  </div>
+                ),
+              },
+            ]}
+          />
 
           <div className="flex flex-col gap-2">
             <Button onClick={() => setEditing(true)}>Editar datos</Button>
             <Button
               tone="quiet"
-              disabled={exporting}
-              onClick={() => {
-                setExporting(true);
-                void downloadApartmentExcel(id)
-                  .catch((error: unknown) => {
-                    toast.error(error instanceof Error ? error.message : "No se pudo crear el Excel.");
-                  })
-                  .finally(() => setExporting(false));
-              }}
+              status={exportAction.status}
+              onClick={() =>
+                void exportAction.run(async () => {
+                  try {
+                    await downloadApartmentExcel(id);
+                    return true;
+                  } catch (error) {
+                    toast.error(
+                      error instanceof Error ? error.message : "No se pudo crear el Excel.",
+                    );
+                    return false;
+                  }
+                })
+              }
             >
-              {exporting ? "Preparando Excel…" : "Exportar Excel"}
+              Exportar Excel
             </Button>
             {apt.ocupado ? (
               <Button tone="quiet" onClick={() => setVacateOpen(true)}>
@@ -283,39 +355,40 @@ function IncreaseCard({ apt, today }: { apt: Apartment; today: string }) {
     queryKey: ["adjustments", apt.id],
     queryFn: () => listAdjustments({ data: apt.id }),
   });
+  const save = useActionStatus();
   const next = nextContractYear(apt, today);
   const due = increaseDue(apt, today);
   const [monto, setMonto] = useState("");
   const [fecha, setFecha] = useState(due && due.daysUntil <= 0 ? due.date : today);
-  const [pending, setPending] = useState(false);
   const start = apt.ingreso ?? apt.contratoInicio;
   const mine = (adjustments.data ?? []).filter((row) => !start || row.vigenteDesde >= start);
   const endsFirst = Boolean(next && apt.contratoFin && apt.contratoFin < next.date);
 
-  async function save(event: FormEvent) {
+  async function onSave(event: FormEvent) {
     event.preventDefault();
     const centavos = pesosToCentavos(monto);
     if (centavos == null) {
       toast.error("Revisa el monto de la nueva renta.");
       return;
     }
-    setPending(true);
-    try {
-      const result = await applyIncrease({
-        data: { apartmentId: apt.id, nuevoCentavos: centavos, vigenteDesde: fecha || today },
-      });
-      if (!result.ok) {
-        toast.error(result.error);
-        return;
+    await save.run(async () => {
+      try {
+        const result = await applyIncrease({
+          data: { apartmentId: apt.id, nuevoCentavos: centavos, vigenteDesde: fecha || today },
+        });
+        if (!result.ok) {
+          toast.error(result.error);
+          return false;
+        }
+        setMonto("");
+        refresh();
+        toast.success("Renta actualizada");
+        return true;
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "No se pudo guardar.");
+        return false;
       }
-      setMonto("");
-      refresh();
-      toast.success("Renta actualizada");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo guardar.");
-    } finally {
-      setPending(false);
-    }
+    });
   }
 
   const headline = !next
@@ -342,7 +415,7 @@ function IncreaseCard({ apt, today }: { apt: Apartment; today: string }) {
       <p className="text-sm text-muted">{headline}</p>
       <Row label="Renta actual" value={formatMoney(apt.rentaCentavos)} />
       {due ? (
-        <form className="space-y-3" onSubmit={(event) => void save(event)}>
+        <form className="space-y-3" onSubmit={(event) => void onSave(event)}>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Nueva renta" hint="Pesos">
               <TextInput
@@ -354,11 +427,16 @@ function IncreaseCard({ apt, today }: { apt: Apartment; today: string }) {
               />
             </Field>
             <Field label="Desde" hint="Los cobros ya anotados no cambian">
-              <TextInput type="date" value={fecha} onChange={(event) => setFecha(event.target.value)} required />
+              <TextInput
+                type="date"
+                value={fecha}
+                onChange={(event) => setFecha(event.target.value)}
+                required
+              />
             </Field>
           </div>
-          <Button type="submit" disabled={pending}>
-            {pending ? "Guardando…" : "Guardar nueva renta"}
+          <Button type="submit" status={save.status as ButtonStatus}>
+            Guardar nueva renta
           </Button>
         </form>
       ) : null}
@@ -366,7 +444,8 @@ function IncreaseCard({ apt, today }: { apt: Apartment; today: string }) {
         <ul className="space-y-1">
           {mine.map((row: RentAdjustment) => (
             <li key={row.id} className="text-sm text-muted">
-              {longDate(row.vigenteDesde)} · {formatMoney(row.anteriorCentavos)} → {formatMoney(row.nuevoCentavos)}
+              {longDate(row.vigenteDesde)} · {formatMoney(row.anteriorCentavos)} →{" "}
+              {formatMoney(row.nuevoCentavos)}
             </li>
           ))}
         </ul>

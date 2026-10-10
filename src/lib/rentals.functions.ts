@@ -6,10 +6,14 @@ import {
   depositoEstadoOf,
   addDays,
   isUuid,
+  mexicoOfficialHolidays,
   mexicoToday,
+  monthsFrom,
   parseApartmentInput,
   periodInRange,
   rowsForMonth,
+  shiftMonth,
+  stripControlChars,
   type Apartment,
   type ApartmentInput,
   type BlacklistEntry,
@@ -216,6 +220,7 @@ export const listHolidays = createServerFn({ method: "GET" })
       ? Date.now() - new Date(cached[0].fetched_at).getTime() < 86_400_000
       : false;
     if (cached[0] && fresh) return JSON.parse(cached[0].payload) as Holiday[];
+    // Fuente pública sin llave ni registro: Nager.Date (feriados oficiales MX).
     try {
       const response = await fetch(
         `https://date.nager.at/api/v3/PublicHolidays/${year}/MX`,
@@ -234,9 +239,50 @@ export const listHolidays = createServerFn({ method: "GET" })
       `;
       return slim;
     } catch {
+      // Respaldo local: reglas oficiales del art. 74 LFT (ver
+      // mexicoOfficialHolidays). La agenda sigue funcionando sin conexión.
+      const fallback = mexicoOfficialHolidays(year);
+      if (fallback.length > 0) {
+        const payload = JSON.stringify(fallback);
+        await sql`
+          insert into holiday_cache (anio, payload, fetched_at)
+          values (${year}, ${payload}, now())
+          on conflict (anio) do update set payload = ${payload}, fetched_at = now()
+        `;
+        return fallback;
+      }
       if (cached[0]) return JSON.parse(cached[0].payload) as Holiday[];
       return [];
     }
+  });
+
+export type IncomePoint = { anio: number; mes: number; centavos: number };
+
+/**
+ * Lo cobrado por mes en los últimos 12 meses (para la gráfica de Ingresos).
+ * Se apoya en el índice receipts_user_anio_idx (migración 0005).
+ */
+export const listIncomeTimeline = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<IncomePoint[]> => {
+    const sql = await getSql();
+    const today = mexicoToday();
+    const end = { anio: Number(today.slice(0, 4)), mes: Number(today.slice(5, 7)) };
+    const start = shiftMonth(end.anio, end.mes, -11);
+    const rows = await sql<{ anio: unknown; mes: unknown; total: unknown }>`
+      select anio, mes, coalesce(sum(centavos), 0) as total
+      from receipts
+      where user_id = ${context.userId}
+        and (anio > ${start.anio} or (anio = ${start.anio} and mes >= ${start.mes}))
+      group by anio, mes
+      order by anio, mes
+    `;
+    const byKey = new Map(rows.map((row) => [`${row.anio}-${row.mes}`, num(row.total) ?? 0]));
+    return monthsFrom(start, end).map(({ anio, mes }) => ({
+      anio,
+      mes,
+      centavos: byKey.get(`${anio}-${mes}`) ?? 0,
+    }));
   });
 
 async function archiveStay(
@@ -770,14 +816,14 @@ export const addBlacklist = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     if (!data || typeof data !== "object") return { ok: false as const, error: "Datos inválidos." };
     const o = data as Record<string, unknown>;
-    const nombre = typeof o.nombre === "string" ? o.nombre.replace(/[\u0000-\u001F]/g, "").trim() : "";
+    const nombre = typeof o.nombre === "string" ? stripControlChars(o.nombre).trim() : "";
     if (nombre.length < 2 || nombre.length > 80) {
       return { ok: false as const, error: "Escribe el nombre completo." };
     }
     const telefono =
-      typeof o.telefono === "string" ? o.telefono.replace(/[\u0000-\u001F]/g, "").trim().slice(0, 24) : "";
+      typeof o.telefono === "string" ? stripControlChars(o.telefono).trim().slice(0, 24) : "";
     const motivo =
-      typeof o.motivo === "string" ? o.motivo.replace(/[\u0000-\u001F]/g, "").trim().slice(0, 240) : "";
+      typeof o.motivo === "string" ? stripControlChars(o.motivo).trim().slice(0, 240) : "";
     const sql = await getSql();
     const existing = await namesBlocked(sql, context.userId, nombre);
     if (existing) return { ok: false as const, error: "Ese nombre ya está en la lista." };

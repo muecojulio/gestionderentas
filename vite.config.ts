@@ -10,7 +10,33 @@ import { nitro } from "nitro/vite";
 import { grokPwaPlugin } from "./scripts/grok-pwa-plugin.mjs";
 // @ts-expect-error JS plugin alongside the TS vite config
 import { appEnvPlugin } from "./scripts/app-env-plugin.mjs";
+// @ts-expect-error JS module alongside the TS vite config
+import { buildSecurityHeaders } from "./scripts/security-headers-shared.mjs";
 import { isMigrationFile } from "./scripts/migration-plan.mjs";
+
+/**
+ * Encabezados de seguridad en el servidor de desarrollo. En producción los
+ * aplica el middleware de Nitro (`server/middleware/security-headers.ts`);
+ * aquí se fija la misma política (compartida en
+ * `scripts/security-headers-shared.mjs`) antes de que cada respuesta parta.
+ */
+function securityHeadersPlugin(): Plugin {
+  return {
+    name: "app-builder:security-headers",
+    apply: "serve",
+    configureServer(server) {
+      const headers = buildSecurityHeaders({ production: false });
+      server.middlewares.use((req, res, next) => {
+        if (!res.headersSent) {
+          for (const [name, value] of Object.entries(headers)) {
+            res.setHeader(name, value);
+          }
+        }
+        next();
+      });
+    },
+  };
+}
 
 /** The files `src/lib/db.ts` globs — same directory, same non-recursive scope. */
 function hasGlobbedMigrations(root: string): boolean {
@@ -150,6 +176,9 @@ export default defineConfig(({ command, isPreview }) => ({
     host: "0.0.0.0",
     port: 8080,
     strictPort: true,
+    // The live preview proxies this app under `https://<port>-<id>.e2b.app`;
+    // Vite's host allowlist must accept that host or the preview gets HTTP 403.
+    allowedHosts: [".e2b.app", "localhost", "127.0.0.1"],
   },
   preview: {
     host: "127.0.0.1",
@@ -163,6 +192,8 @@ export default defineConfig(({ command, isPreview }) => ({
     authPopupPlugin(),
     // Dev-only /__app-env, read by scripts/check-auth-invariant.mjs.
     appEnvPlugin(),
+    // Encabezados de seguridad (CSP, nosniff, referrer-policy, …) en dev.
+    securityHeadersPlugin(),
     // PWA head + ?install=1 tutorial page; runs before Start/Nitro.
     grokPwaPlugin(),
     tailwindcss(),

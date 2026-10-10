@@ -654,9 +654,21 @@ export function agendaOn(
   return items;
 }
 
+/**
+ * Quita caracteres de control (C0 + DEL + C1). Se usa para sanear todo texto
+ * que entra por los formularios antes de guardarlo. `\p{Cc}` cubre
+ * U+0000–U+001F, U+007F–U+009F sin literales de control en el patrón (regla
+ * `no-control-regex` de ESLint).
+ */
+const CONTROL_CHARS = /[\p{Cc}]/gu;
+
+export function stripControlChars(value: string): string {
+  return value.replace(CONTROL_CHARS, "");
+}
+
 function text(value: unknown, max: number): string {
   if (typeof value !== "string") return "";
-  return value.replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, max);
+  return stripControlChars(value).trim().slice(0, max);
 }
 
 function day(value: unknown): number | null {
@@ -777,4 +789,39 @@ export function parseApartmentInput(
 
 export function isUuid(value: string): boolean {
   return UUID.test(value);
+}
+
+/**
+ * Feriados oficiales de México según el art. 74 de la Ley Federal del Trabajo:
+ * los de fecha fija más los tres que se observan el lunes correspondiente desde
+ * 2006 (Constitución, Juárez, Revolución) y el 1 de diciembre cada seis años
+ * (transmisión del Poder Ejecutivo). Es el respaldo local cuando la API pública
+ * de Nager.Date no responde; las reglas son las mismas que publican los
+ * repositorios abiertos `commenthol/date-holidays` (data/countries/MX.yaml) y
+ * `GerardoLucero/mx-feriados`.
+ */
+export function mexicoOfficialHolidays(year: number): Holiday[] {
+  if (!Number.isInteger(year) || year < 1900 || year > 2100) return [];
+  const iso = (mes: number, dia: number) =>
+    `${year}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+  // weekday: 1 = lunes … 7 = domingo (ISO). Devuelve el día del mes del n-ésimo
+  // día de la semana indicado.
+  const nthWeekday = (mes: number, weekday: number, n: number): number => {
+    const first = new Date(Date.UTC(year, mes - 1, 1)).getUTCDay();
+    const offset = (weekday - first + 7) % 7;
+    return 1 + offset + (n - 1) * 7;
+  };
+  const list: Holiday[] = [
+    { date: iso(1, 1), localName: "Año Nuevo" },
+    { date: iso(2, nthWeekday(2, 1, 1)), localName: "Día de la Constitución" },
+    { date: iso(3, nthWeekday(3, 1, 3)), localName: "Natalicio de Benito Juárez" },
+    { date: iso(5, 1), localName: "Día del Trabajo" },
+    { date: iso(9, 16), localName: "Día de la Independencia" },
+    { date: iso(11, nthWeekday(11, 1, 3)), localName: "Día de la Revolución" },
+  ];
+  if (year >= 2018 && (year - 2018) % 6 === 0) {
+    list.push({ date: iso(12, 1), localName: "Transmisión del Poder Ejecutivo Federal" });
+  }
+  list.push({ date: iso(12, 25), localName: "Navidad" });
+  return list.sort((a, b) => a.date.localeCompare(b.date));
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Building2 } from "lucide-react";
 import type { Apartment, ApartmentInput, DepositoEstado } from "@/lib/rentals.logic";
 import { centavosToInput, pesosToCentavos } from "@/lib/rentals.logic";
+import { Accordion } from "@/components/accordion";
 import { compressPhoto } from "@/components/photo";
 import { Button, Field, TextArea, TextInput, Toggle } from "@/components/ui";
 
@@ -117,15 +118,21 @@ export function ApartmentForm({
         submit();
       }}
     >
-      <section className="space-y-3">
-        <h2 className="font-display text-2xl">El departamento</h2>
+      <Accordion title="El departamento">
+        <div className="space-y-3">
         <button
           type="button"
-          className="press relative block w-full overflow-hidden rounded-xl border border-line bg-raised"
+          aria-label={foto ? "Cambiar la foto del departamento" : "Subir foto del departamento"}
+          className="press group relative block w-full overflow-hidden rounded-xl border border-line bg-raised"
           onClick={() => document.getElementById("foto-depto")?.click()}
         >
           {foto ? (
-            <img src={foto} alt="" className="aspect-video w-full object-cover" />
+            <>
+              <img src={foto} alt="" className="aspect-video w-full object-cover" />
+              <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-bg/80 to-transparent px-3 pb-2 pt-8 text-left text-sm text-fg opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                Cambiar foto
+              </span>
+            </>
           ) : (
             <span className="flex aspect-video flex-col items-center justify-center gap-2 text-muted">
               <Building2 strokeWidth={1.5} />
@@ -155,10 +162,11 @@ export function ApartmentForm({
             placeholder="Calle, número, colonia"
           />
         </Field>
-      </section>
+        </div>
+      </Accordion>
 
-      <section className="space-y-3">
-        <h2 className="font-display text-2xl">Ficha técnica</h2>
+      <Accordion title="Ficha técnica">
+        <div className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Medidor de luz">
             <TextInput value={medidorLuz} onChange={(event) => setMedidorLuz(event.target.value)} />
@@ -209,10 +217,11 @@ export function ApartmentForm({
             placeholder="El medidor de luz está en el cubo de escaleras"
           />
         </Field>
-      </section>
+        </div>
+      </Accordion>
 
-      <section className="space-y-3">
-        <h2 className="font-display text-2xl">Inquilino</h2>
+      <Accordion title="Inquilino">
+        <div className="space-y-3">
         <Toggle
           checked={ocupado}
           onCheckedChange={setOcupado}
@@ -303,6 +312,7 @@ export function ApartmentForm({
                 <button
                   key={id}
                   type="button"
+                  aria-pressed={depositoEstado === id}
                   className={
                     depositoEstado === id
                       ? "press h-11 rounded-xl border border-accent bg-accent/10 px-3 text-sm text-fg"
@@ -319,7 +329,8 @@ export function ApartmentForm({
             </Field>
           </div>
         ) : null}
-      </section>
+        </div>
+      </Accordion>
 
       {warning ? (
         <div className="rounded-xl border border-accent/50 bg-accent/10 p-4">
@@ -335,8 +346,13 @@ export function ApartmentForm({
         </div>
       ) : null}
       {localError ? <p className="text-sm text-accent">{localError}</p> : null}
-      <Button type="submit" className="w-full" disabled={pending || (Boolean(warning) && !forzar)}>
-        {pending ? "Guardando…" : "Guardar"}
+      <Button
+        type="submit"
+        className="w-full"
+        status={pending ? "loading" : "idle"}
+        disabled={pending || (Boolean(warning) && !forzar)}
+      >
+        Guardar
       </Button>
     </form>
   );

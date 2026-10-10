@@ -40,7 +40,8 @@ function Avisos() {
   }
 
   const data = portfolio.data;
-  const alerts = data ? computeAlerts(data.apartments, data.today, holidays.data ?? []) : [];
+  const holidayList = holidays.data ?? [];
+  const alerts = data ? computeAlerts(data.apartments, data.today, holidayList) : [];
   const lateIds = new Set(alerts.filter((alert) => alert.kind === "mora").map((alert) => alert.apartmentId));
   const soon =
     data?.apartments.filter((apt) => {
@@ -49,9 +50,25 @@ function Avisos() {
       return daysUntil > 1 && daysUntil <= 7;
     }) ?? [];
 
+  if (portfolio.isPending) {
+    return (
+      <div className="mx-auto max-w-xl space-y-6" aria-busy="true" aria-live="polite">
+        <div className="space-y-2">
+          <div className="skeleton h-10 w-32" />
+          <div className="skeleton h-4 w-full" />
+        </div>
+        <div className="skeleton h-16 w-full" />
+        <div className="space-y-2">
+          <div className="skeleton h-16" />
+          <div className="skeleton h-16" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-xl space-y-6">
-      <header>
+      <header className="rise">
         <h1 className="font-display text-4xl">Avisos</h1>
         <p className="mt-2 text-sm text-muted">
           Un día antes de la renta. Si ya pasó el día y no la marcaste como recibida, aquí verás cuántos días
@@ -68,13 +85,13 @@ function Avisos() {
       {alerts.length === 0 ? (
         <p className="text-sm text-muted">Hoy no hay avisos pendientes.</p>
       ) : (
-        <ul className="space-y-2">
-          {alerts.map((alert) => (
-            <li key={alert.key}>
+        <ul className="space-y-2" aria-label="Avisos pendientes">
+          {alerts.map((alert, index) => (
+            <li key={alert.key} className="rise" style={{ animationDelay: `${index * 60}ms` }}>
               <Link
                 to="/depto/$id"
                 params={{ id: alert.apartmentId }}
-                className="press block rounded-xl border border-accent/40 bg-accent/10 px-4 py-3"
+                className="press lift block rounded-xl border border-accent/40 bg-accent/10 px-4 py-3"
               >
                 <p className="text-sm font-medium">{alert.title}</p>
                 <p className="text-sm text-muted">{alert.detail}</p>

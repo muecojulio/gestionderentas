@@ -12,6 +12,7 @@ import {
 
 function apt(partial: Partial<Apartment> & Pick<Apartment, "id" | "nombre">): Apartment {
   return {
+    tipo: "departamento",
     direccion: "",
     foto: null,
     medidorLuz: "",

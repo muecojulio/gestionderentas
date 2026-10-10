@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Building2, Download } from "lucide-react";
+import { Building2, Download, Store } from "lucide-react";
 import { toast } from "sonner";
 import { Chip, HScroller } from "@/components/hscroller";
 import { Combobox } from "@/components/combobox";
@@ -8,18 +8,25 @@ import { SwipeableRow } from "@/components/swipeable";
 import { DataError } from "@/components/data-error";
 import { Button, Empty } from "@/components/ui";
 import { downloadApartmentExcel } from "@/lib/excel-apartment";
-import { formatMoney, rentMora, diasTexto, type Apartment } from "@/lib/rentals.logic";
+import { formatMoney, rentMora, diasTexto, TIPO_LABEL, type Apartment, type PropertyTipo } from "@/lib/rentals.logic";
 import { useRentals } from "@/lib/use-rentals";
 
 export const Route = createFileRoute("/departamentos")({ component: Departamentos });
 
 type Filter = "todos" | "rentados" | "libres" | "mora";
+type TipoFilter = "todos" | PropertyTipo;
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "todos", label: "Todos" },
   { id: "rentados", label: "Rentados" },
   { id: "libres", label: "Libres" },
   { id: "mora", label: "Con mora" },
+];
+
+const TIPO_FILTERS: { id: TipoFilter; label: string }[] = [
+  { id: "todos", label: "Todos" },
+  { id: "departamento", label: "Departamentos" },
+  { id: "accesoria", label: "Accesorias" },
 ];
 
 function matches(apt: Apartment, filter: Filter, today: string): boolean {
@@ -35,10 +42,16 @@ function matches(apt: Apartment, filter: Filter, today: string): boolean {
   }
 }
 
+function matchesTipo(apt: Apartment, tipo: TipoFilter): boolean {
+  if (tipo === "todos") return true;
+  return apt.tipo === tipo;
+}
+
 function Departamentos() {
   const { portfolio } = useRentals();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<Filter>("todos");
+  const [tipoFilter, setTipoFilter] = useState<TipoFilter>("todos");
   const [busy, setBusy] = useState<string | null>(null);
 
   const options = useMemo(
@@ -85,12 +98,17 @@ function Departamentos() {
     );
   }
   const { apartments, today } = portfolio.data;
-  const visible = apartments.filter((apt) => matches(apt, filter, today));
+  const visible = apartments.filter((apt) => matches(apt, filter, today) && matchesTipo(apt, tipoFilter));
   const counts: Record<Filter, number> = {
     todos: apartments.length,
     rentados: apartments.filter((apt) => apt.ocupado).length,
     libres: apartments.filter((apt) => !apt.ocupado).length,
     mora: apartments.filter((apt) => apt.ocupado && rentMora(apt, today) != null).length,
+  };
+  const tipoCounts: Record<TipoFilter, number> = {
+    todos: apartments.length,
+    departamento: apartments.filter((apt) => apt.tipo === "departamento").length,
+    accesoria: apartments.filter((apt) => apt.tipo === "accesoria").length,
   };
 
   async function onExport(id: string) {
@@ -125,8 +143,8 @@ function Departamentos() {
     <div className="space-y-5">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-4xl">Departamentos</h1>
-          <p className="mt-1 text-sm text-muted">{apartments.length} en tu cartera</p>
+          <h1 className="font-display text-4xl">Propiedades</h1>
+          <p className="mt-1 text-sm text-muted">{apartments.length} en tu cartera · {tipoCounts.departamento} deptos · {tipoCounts.accesoria} accesorias</p>
         </div>
         <Link to="/nuevo">
           <Button>Nuevo</Button>
@@ -134,14 +152,14 @@ function Departamentos() {
       </div>
 
       <Combobox
-        label="Buscar departamento"
+        label="Buscar propiedad"
         placeholder="Buscar por nombre, dirección o inquilino…"
         options={options}
         onSelect={(id) => void navigate({ to: "/depto/$id", params: { id } })}
-        noResults="No hay departamentos con ese nombre"
+        noResults="No hay propiedades con ese nombre"
       />
 
-      <HScroller label="Filtros" activeKey={filter}>
+      <HScroller label="Estado" activeKey={filter}>
         {FILTERS.map((item) => (
           <Chip
             key={item.id}
@@ -153,20 +171,32 @@ function Departamentos() {
           </Chip>
         ))}
       </HScroller>
+      <HScroller label="Tipo" activeKey={tipoFilter}>
+        {TIPO_FILTERS.map((item) => (
+          <Chip
+            key={item.id}
+            chipKey={item.id}
+            active={tipoFilter === item.id}
+            onClick={() => setTipoFilter(item.id)}
+          >
+            {item.label} · {tipoCounts[item.id]}
+          </Chip>
+        ))}
+      </HScroller>
 
       {apartments.length === 0 ? (
         <Empty
           title="Agrega el primero"
-          body="La foto y los números de medidor se quedan aunque cambie el inquilino."
+          body="Departamentos y accesorias comparten la misma ficha: foto, medidores y contrato. Elige el tipo al crear."
           icon={<Building2 size={28} strokeWidth={1.25} />}
         />
       ) : visible.length === 0 ? (
         <Empty
           title="Nada por aquí"
-          body="Ningún departamento coincide con este filtro. Prueba con otro."
+          body="Ninguna propiedad coincide con este filtro. Prueba con otro."
         />
       ) : (
-        <ul className="space-y-2" aria-label="Departamentos">
+        <ul className="space-y-2" aria-label="Propiedades">
           {visible.map((apt) => {
             const late = apt.ocupado ? rentMora(apt, today) : null;
             return (
@@ -191,6 +221,14 @@ function Departamentos() {
                       <span className="size-16 shrink-0 rounded-lg bg-gradient-to-br from-accent/10 to-bg" />
                     )}
                     <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-1.5">
+                        {apt.tipo === "accesoria" ? (
+                          <Store size={12} className="shrink-0 text-muted" aria-hidden />
+                        ) : (
+                          <Building2 size={12} className="shrink-0 text-muted" aria-hidden />
+                        )}
+                        <span className="truncate text-[11px] uppercase tracking-wide text-muted">{TIPO_LABEL[apt.tipo]}</span>
+                      </span>
                       <span className="block truncate font-medium">{apt.nombre}</span>
                       <span className="block truncate text-sm text-muted">
                         {apt.ocupado ? apt.inquilino || "Rentado" : "Libre"}

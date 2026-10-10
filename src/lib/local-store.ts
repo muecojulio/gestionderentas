@@ -28,6 +28,7 @@ import {
   monthsFrom,
   parseApartmentInput,
   periodInRange,
+  tipoOf,
   rowsForMonth,
   shiftMonth,
   type Apartment,
@@ -137,7 +138,10 @@ export function readDb(): LocalDb {
     if (!isRecord(parsed)) return structuredClone(EMPTY);
     return {
       version: 1,
-      apartments: asArray(parsed.apartments).filter(isRecord) as StoredApartment[],
+      apartments: asArray(parsed.apartments).filter(isRecord).map((r: any) => ({
+        ...r,
+        tipo: tipoOf((r as any).tipo) ?? "departamento",
+      })) as StoredApartment[],
       tenancies: asArray(parsed.tenancies).filter(isRecord) as StoredTenancy[],
       blacklist: asArray(parsed.blacklist).filter(isRecord) as BlacklistEntry[],
       receipts: asArray(parsed.receipts).filter(isRecord) as StoredReceipt[],
@@ -187,6 +191,7 @@ function lastIncrease(db: LocalDb, apartmentId: string): string | null {
 function hydrate(db: LocalDb, apt: StoredApartment, anio: number, mes: number): Apartment {
   return {
     ...apt,
+    tipo: tipoOf((apt as any).tipo) ?? "departamento",
     recibido: db.receipts.some(
       (receipt) =>
         receipt.apartmentId === apt.id && receipt.anio === anio && receipt.mes === mes,
@@ -387,6 +392,7 @@ function toStored(input: ApartmentInput, id: string): StoredApartment {
   return {
     id,
     nombre: input.nombre,
+    tipo: input.tipo,
     direccion: input.direccion,
     foto: input.foto,
     medidorLuz: input.medidorLuz,

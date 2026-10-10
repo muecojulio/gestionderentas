@@ -2,6 +2,7 @@ import writeXlsxFile from "write-excel-file/browser";
 import { exportApartment } from "@/lib/rentals.api";
 import {
   DEPOSITO_LABEL,
+  TIPO_LABEL,
   diasTexto,
   formatMoney,
   longDate,
@@ -32,7 +33,7 @@ function head(value: string): Cell {
   return { value, type: String, fontWeight: "bold" };
 }
 
-function pesos(centavos: number | null): Cell {
+function pesos(centavos: number | null): Cell { // MXN únicamente
   if (centavos == null) return text("—");
   return { value: centavos / 100, type: Number, format: '"$"#,##0.00' };
 }
@@ -44,7 +45,7 @@ function fileName(nombre: string): string {
     .replace(/[^a-zA-Z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 48);
-  return `${slug || "departamento"}.xlsx`;
+  return `${slug || "propiedad"}.xlsx`;
 }
 
 function pair(label: string, value: string): Cell[] {
@@ -60,7 +61,8 @@ function ficha(apartment: Apartment, today: string): Cell[][] {
         }`;
   return [
     [head("Campo"), head("Valor")],
-    pair("Departamento", apartment.nombre),
+    pair("Tipo", TIPO_LABEL[apartment.tipo] ?? apartment.tipo),
+    pair("Nombre", apartment.nombre),
     pair("Dirección", apartment.direccion || "—"),
     pair("Foto", apartment.foto ? "Sí" : "No"),
     pair("Medidor de luz", apartment.medidorLuz || "—"),

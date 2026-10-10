@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Building2,
   CalendarDays,
+  Store,
   FileWarning,
   TrendingUp,
 } from "lucide-react";
@@ -11,17 +12,18 @@ import { AnimatedCounter, ProgressRing } from "@/components/animated-counter";
 import { EdgeFades } from "@/components/hscroller";
 import { DataError } from "@/components/data-error";
 import { Button, Empty } from "@/components/ui";
-import { formatRate, formatUsd } from "@/lib/exchange";
+// Rentas solo en MXN — sin conversión a USD
 import {
   computeAlerts,
   diasTexto,
   formatMoney,
   monthTitle,
   rentMora,
+  TIPO_LABEL,
   tenureLabel,
 } from "@/lib/rentals.logic";
 import { useScrollEdges } from "@/lib/motion";
-import { useExchangeRate, useRentals } from "@/lib/use-rentals";
+import { useRentals } from "@/lib/use-rentals";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -37,7 +39,6 @@ const ALERT_ICON = {
 
 function Home() {
   const { portfolio, holidays } = useRentals();
-  const rate = useExchangeRate();
   const listRef = useRef<HTMLUListElement>(null);
   const edges = useScrollEdges(listRef);
 
@@ -59,7 +60,7 @@ function Home() {
   if (portfolio.isError || !portfolio.data) {
     return (
       <DataError
-        title="No se pudieron cargar los departamentos."
+        title="No se pudieron cargar las propiedades."
         error={portfolio.error}
         onRetry={() => void portfolio.refetch()}
       />
@@ -71,7 +72,6 @@ function Home() {
   const received = occupied
     .filter((apt) => apt.recibido)
     .reduce((sum, apt) => sum + (apt.rentaCentavos ?? 0), 0);
-  const pendiente = Math.max(0, expected - received);
   const alerts = computeAlerts(apartments, today, holidays.data ?? []);
 
   return (
@@ -84,23 +84,13 @@ function Home() {
           </h1>
           <p className="mt-2 text-sm text-muted">
             Por recibir este mes · {formatMoney(received)} ya anotado · {occupied.length} de{" "}
-            {apartments.length} rentados
+            {apartments.length} rentados · {apartments.filter((a) => a.tipo === "departamento").length} deptos ·{" "}
+            {apartments.filter((a) => a.tipo === "accesoria").length} accesorias
           </p>
-          {rate.data ? (
-            <p
-              className="mt-3 inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-line bg-raised/80 px-3 py-1.5 text-xs text-muted"
-              title={rate.data.source}
-            >
-              <TrendingUp size={12} aria-hidden />
-              <span>
-                1 USD = {formatRate(rate.data.rate)} MXN · {rate.data.sourceLabel}
-                {rate.data.stale ? " (última tasa conocida)" : ""}
-              </span>
-              {pendiente > 0 ? (
-                <span>· por cobrar ≈ {formatUsd(pendiente, rate.data.rate)} USD</span>
-              ) : null}
-            </p>
-          ) : null}
+          <p className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line bg-raised/80 px-3 py-1.5 text-xs font-medium text-muted">
+            <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
+            Todas las rentas se cobran únicamente en pesos mexicanos (MXN)
+          </p>
         </div>
         <ProgressRing
           value={received}
@@ -134,12 +124,12 @@ function Home() {
 
       {apartments.length === 0 ? (
         <Empty
-          title="Todavía no hay departamentos"
-          body="Agrega el primero con su foto, medidores y, si ya tiene inquilino, el contrato."
+          title="Todavía no hay propiedades"
+          body="Agrega el primero con su foto, medidores y, si ya tiene inquilino, el contrato. Elige si es departamento o accesoria."
           icon={<Building2 size={28} strokeWidth={1.25} />}
           action={
             <Link to="/nuevo">
-              <Button>Agregar departamento</Button>
+              <Button>Agregar propiedad</Button>
             </Link>
           }
         />
@@ -188,6 +178,10 @@ function Home() {
                           {apt.ocupado ? "Rentado" : "Libre"}
                         </span>
                       </div>
+                      <p className="flex items-center gap-1 text-xs uppercase tracking-wide text-muted">
+                        {apt.tipo === "accesoria" ? <Store size={10} aria-hidden /> : <Building2 size={10} aria-hidden />}
+                        {TIPO_LABEL[apt.tipo]}
+                      </p>
                       <p className="text-sm text-fg">
                         {apt.ocupado ? formatMoney(apt.rentaCentavos) : "Sin inquilino"}
                       </p>

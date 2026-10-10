@@ -1,6 +1,25 @@
+export type PropertyTipo = "departamento" | "accesoria";
+
+export const TIPO_LABEL: Record<PropertyTipo, string> = {
+  departamento: "Departamento",
+  accesoria: "Accesoria",
+};
+
+export const TIPO_PLURAL: Record<PropertyTipo, string> = {
+  departamento: "Departamentos",
+  accesoria: "Accesorias",
+};
+
+export const TIPOS: readonly PropertyTipo[] = ["departamento", "accesoria"] as const;
+
+export function tipoOf(value: unknown): PropertyTipo | null {
+  return value === "departamento" || value === "accesoria" ? value : null;
+}
+
 export type Apartment = {
   id: string;
   nombre: string;
+  tipo: PropertyTipo;
   direccion: string;
   foto: string | null;
   medidorLuz: string;
@@ -59,6 +78,7 @@ export type Portfolio = {
 export type ApartmentInput = {
   id?: string;
   nombre: string;
+  tipo: PropertyTipo;
   direccion: string;
   foto: string | null;
   medidorLuz: string;
@@ -192,16 +212,21 @@ export function daysBetween(fromIso: string, toIso: string): number {
   return Math.round((b - a) / 86_400_000);
 }
 
+/** Formatea centavos como pesos mexicanos (MXN) — única moneda de cobro.
+ *  El símbolo $ se desambigua con “MXN” para que nunca se confunda con USD. */
 export function formatMoney(centavos: number | null | undefined): string {
   if (centavos == null) return "—";
   const pesos = centavos / 100;
-  return new Intl.NumberFormat("es-MX", {
+  const base = new Intl.NumberFormat("es-MX", {
     style: "currency",
     currency: "MXN",
     maximumFractionDigits: centavos % 100 === 0 ? 0 : 2,
   }).format(pesos);
+  // En es-MX el formato es "$12,000" sin sufijo; lo hacemos explícito: "$12,000 MXN"
+  return base.includes("MXN") ? base : `${base} MXN`;
 }
 
+/** Convierte texto a centavos MXN. Solo acepta pesos mexicanos (MXN), sin USD ni otra moneda. */
 export function pesosToCentavos(raw: string): number | null {
   const t = raw.trim().replace(/\s/g, "").replace(/\$/g, "").replace(/,/g, "");
   if (!t) return null;
@@ -698,6 +723,11 @@ export function parseApartmentInput(
   const o = raw as Record<string, unknown>;
   const nombre = text(o.nombre, 80);
   if (nombre.length < 2) return { ok: false, error: "Ponle un nombre al departamento." };
+  const tipoRaw = text(o.tipo, 20).toLowerCase();
+  const tipo: PropertyTipo = tipoOf(tipoRaw) ?? "departamento";
+  if (tipoRaw && !tipoOf(tipoRaw)) {
+    return { ok: false, error: "El tipo debe ser Departamento o Accesoria." };
+  }
   const id = o.id == null || o.id === "" ? undefined : text(o.id, 40);
   if (id && !UUID.test(id)) return { ok: false, error: "Departamento inválido." };
   const foto = o.foto == null || o.foto === "" ? null : String(o.foto);
@@ -760,6 +790,7 @@ export function parseApartmentInput(
     value: {
       id,
       nombre,
+      tipo,
       direccion: text(o.direccion, 160),
       foto,
       medidorLuz: text(o.medidorLuz, 40),

@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, TrendingUp } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { DataError } from "@/components/data-error";
 import { Toggle } from "@/components/ui";
-import { formatRate, formatUsd } from "@/lib/exchange";
+// Rentas solo en MXN — sin conversión a USD
 import { listMonth, setReceipt } from "@/lib/rentals.api";
 import {
   diasTexto,
@@ -15,7 +15,7 @@ import {
   periodInRange,
   shiftMonth,
 } from "@/lib/rentals.logic";
-import { useExchangeRate, useIncomeTimeline, useRefreshRentals, useRentals } from "@/lib/use-rentals";
+import { useIncomeTimeline, useRefreshRentals, useRentals } from "@/lib/use-rentals";
 
 export const Route = createFileRoute("/ingresos")({ component: Ingresos });
 
@@ -37,7 +37,6 @@ const MESES_CORTOS = [
 function Ingresos() {
   const { portfolio } = useRentals();
   const refresh = useRefreshRentals();
-  const rate = useExchangeRate();
   const timelineQuery = useIncomeTimeline();
   const [cursor, setCursor] = useState<{ anio: number; mes: number } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -141,21 +140,10 @@ function Ingresos() {
         <p className="mt-1 text-sm text-muted">
           En {portfolio.data.anio} llevas registrado {formatMoney(portfolio.data.recibidoAnio)}.
         </p>
-        {rate.data ? (
-          <p
-            className="mt-3 inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-line bg-raised/80 px-3 py-1.5 text-xs text-muted"
-            title={rate.data.source}
-          >
-            <TrendingUp size={12} aria-hidden />
-            <span>
-              1 USD = {formatRate(rate.data.rate)} MXN · {rate.data.sourceLabel}
-              {rate.data.stale ? " (última tasa conocida)" : ""}
-            </span>
-            {view && view.porCobrar > 0 ? (
-              <span>· por cobrar ≈ {formatUsd(view.porCobrar, rate.data.rate)} USD</span>
-            ) : null}
-          </p>
-        ) : null}
+        <p className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line bg-raised/80 px-3 py-1.5 text-xs font-medium text-muted">
+          <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
+          Todas las rentas se cobran únicamente en pesos mexicanos (MXN)
+        </p>
         {view ? (
           <div className="mt-4">
             <div className="flex justify-between text-xs text-muted">
@@ -205,7 +193,7 @@ function Ingresos() {
                   tickLine={false}
                   axisLine={false}
                   width={52}
-                  tickFormatter={(value) => `$${Math.round(Number(value) / 100 / 1000)}k`}
+                  tickFormatter={(value) => `${Math.round(Number(value) / 100 / 1000)}k MXN`}
                 />
                 <Tooltip
                   contentStyle={{

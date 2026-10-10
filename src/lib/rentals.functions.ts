@@ -14,6 +14,7 @@ import {
   rowsForMonth,
   shiftMonth,
   stripControlChars,
+  tipoOf,
   type Apartment,
   type ApartmentInput,
   type BlacklistEntry,
@@ -22,6 +23,7 @@ import {
   type MonthStay,
   type MonthTenancy,
   type Portfolio,
+  type PropertyTipo,
   type Receipt,
   type RentAdjustment,
   type Tenancy,
@@ -44,6 +46,7 @@ function str(value: unknown): string {
 type ApartmentRow = {
   id: string;
   nombre: string;
+  tipo?: string | null;
   direccion: string;
   foto: string | null;
   medidor_luz: string;
@@ -74,6 +77,7 @@ function mapApartment(row: ApartmentRow): Apartment {
   return {
     id: row.id,
     nombre: row.nombre,
+    tipo: (tipoOf(row.tipo) ?? "departamento") as PropertyTipo,
     direccion: row.direccion ?? "",
     foto: row.foto || null,
     medidorLuz: row.medidor_luz ?? "",
@@ -128,7 +132,7 @@ export const listPortfolio = createServerFn({ method: "GET" })
     const anio = Number(today.slice(0, 4));
     const mes = Number(today.slice(5, 7));
     const rows = await sql<ApartmentRow>`
-      select a.id, a.nombre, a.direccion, a.foto, a.medidor_luz, a.medidor_agua,
+      select a.id, a.nombre, a.tipo, a.direccion, a.foto, a.medidor_luz, a.medidor_agua,
              a.nota_servicios, a.luz_dia, a.luz_centavos, a.agua_dia, a.agua_centavos,
              a.renta_centavos, a.inquilino, a.telefono, a.dia_pago, a.contrato_inicio,
              a.contrato_fin, a.ingreso, a.ocupado, a.notas,
@@ -328,6 +332,7 @@ async function writeApartment(sql: Sql, userId: string, input: ApartmentInput) {
     const rows = await sql<{ id: string }>`
       update apartments set
         nombre = ${input.nombre},
+        tipo = ${input.tipo},
         direccion = ${input.direccion},
         foto = ${input.foto},
         medidor_luz = ${input.medidorLuz},
@@ -358,12 +363,12 @@ async function writeApartment(sql: Sql, userId: string, input: ApartmentInput) {
   const id = crypto.randomUUID();
   await sql`
     insert into apartments (
-      id, user_id, nombre, direccion, foto, medidor_luz, medidor_agua, nota_servicios,
+      id, user_id, nombre, tipo, direccion, foto, medidor_luz, medidor_agua, nota_servicios,
       luz_dia, luz_centavos, agua_dia, agua_centavos, renta_centavos, inquilino, telefono,
       dia_pago, contrato_inicio, contrato_fin, ingreso, ocupado, notas,
       deposito_centavos, deposito_fecha, deposito_estado, deposito_nota
     ) values (
-      ${id}, ${userId}, ${input.nombre}, ${input.direccion}, ${input.foto},
+      ${id}, ${userId}, ${input.nombre}, ${input.tipo}, ${input.direccion}, ${input.foto},
       ${input.medidorLuz}, ${input.medidorAgua}, ${input.notaServicios},
       ${input.luzDia}, ${input.luzCentavos}, ${input.aguaDia}, ${input.aguaCentavos},
       ${input.rentaCentavos}, ${input.inquilino}, ${input.telefono}, ${input.diaPago},
@@ -437,7 +442,7 @@ export const vacateApartment = createServerFn({ method: "POST" })
   .handler(async ({ context, data: id }) => {
     const sql = await getSql();
     const rows = await sql<ApartmentRow>`
-      select id, nombre, direccion, foto, medidor_luz, medidor_agua, nota_servicios,
+      select id, nombre, tipo, direccion, foto, medidor_luz, medidor_agua, nota_servicios,
              luz_dia, luz_centavos, agua_dia, agua_centavos, renta_centavos, inquilino,
              telefono, dia_pago, contrato_inicio, contrato_fin, ingreso, ocupado, notas,
              deposito_centavos, deposito_fecha, deposito_estado, deposito_nota,
@@ -601,7 +606,7 @@ export const exportApartment = createServerFn({ method: "POST" })
     const anio = Number(today.slice(0, 4));
     const mes = Number(today.slice(5, 7));
     const rows = await sql<ApartmentRow>`
-      select a.id, a.nombre, a.direccion, a.foto, a.medidor_luz, a.medidor_agua,
+      select a.id, a.nombre, a.tipo, a.direccion, a.foto, a.medidor_luz, a.medidor_agua,
              a.nota_servicios, a.luz_dia, a.luz_centavos, a.agua_dia, a.agua_centavos,
              a.renta_centavos, a.inquilino, a.telefono, a.dia_pago, a.contrato_inicio,
              a.contrato_fin, a.ingreso, a.ocupado, a.notas,

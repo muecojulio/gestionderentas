@@ -24,7 +24,7 @@ function Nuevo() {
         return;
       }
       refresh();
-      toast.success("Departamento guardado");
+      toast.success(`${value.tipo === "accesoria" ? "Accesoria guardada" : "Departamento guardado"}`);
       await navigate({ to: "/depto/$id", params: { id: result.id } });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo guardar.");
@@ -35,7 +35,8 @@ function Nuevo() {
 
   return (
     <div className="mx-auto max-w-xl">
-      <h1 className="mb-6 font-display text-4xl">Nuevo departamento</h1>
+      <h1 className="mb-6 font-display text-4xl">Nueva propiedad</h1>
+      <p className="mb-6 text-sm text-muted">Elige si es departamento o accesoria en la ficha.</p>
       <ApartmentForm pending={pending} warning={warning} onSubmit={(value) => void onSubmit(value)} />
     </div>
   );

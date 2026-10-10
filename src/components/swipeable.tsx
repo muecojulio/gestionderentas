@@ -5,9 +5,57 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { Loader2, MoreHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isInteractiveTarget, resolveSwipeAxis, useHoverFine } from "@/lib/motion";
+import { toneStyle, type Tone } from "@/lib/tones";
+
+/** Superficie compartida por las filas deslizables y las tarjetas de lista. */
+export const rowSurface = "row-surface relative overflow-hidden";
+
+/**
+ * Acción del panel que se revela al deslizar (o que queda fijo en escritorio).
+ * Mide 44 px de alto, tiene spinner propio y su estado no depende del color.
+ */
+export function RowAction({
+  label,
+  onClick,
+  tone = "accent",
+  icon,
+  busy = false,
+  disabled = false,
+}: {
+  /** Nombre accesible completo, p. ej. "Exportar Excel de Depto 3". */
+  label: string;
+  onClick: () => void;
+  tone?: Tone;
+  icon?: ReactNode;
+  busy?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      disabled={disabled || busy}
+      aria-busy={busy || undefined}
+      style={toneStyle(tone)}
+      className={cn(
+        "action press flex h-full min-w-24 items-center justify-center gap-1.5 px-4 text-sm font-semibold",
+        "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-soft",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+      )}
+    >
+      {busy ? (
+        <Loader2 size={16} aria-hidden className="animate-spin" />
+      ) : icon ? (
+        <span aria-hidden>{icon}</span>
+      ) : null}
+      <span>{busy ? "Un momento…" : label}</span>
+    </button>
+  );
+}
 
 /**
  * Fila con acciones contextuales reveladas por swipe horizontal:
@@ -114,7 +162,6 @@ export function SwipeableRow({
       setOpen(g.dx <= -threshold);
       setDragX(0);
     }
-    void event;
   };
 
   const offset = open ? -actionWidth : dragX;
@@ -123,9 +170,8 @@ export function SwipeableRow({
     <div
       ref={actionsRef}
       className={cn(
-        fine
-          ? "flex shrink-0 items-stretch border-l border-line bg-bg"
-          : "absolute inset-y-0 right-0 z-0 flex items-stretch",
+        "flex items-stretch bg-bg-deep/85",
+        fine ? "shrink-0 border-l border-line" : "absolute inset-y-0 right-0 z-0",
       )}
       role="group"
       aria-label={actionsLabel}
@@ -138,7 +184,7 @@ export function SwipeableRow({
   if (fine) {
     // Escritorio: las acciones se muestran directamente (sin depender del swipe).
     return (
-      <div className={cn("flex items-stretch overflow-hidden rounded-xl border border-line bg-raised", className)}>
+      <div className={cn(rowSurface, "flex items-stretch", className)}>
         <div ref={contentRef} className="min-w-0 flex-1">
           {children}
         </div>
@@ -148,14 +194,14 @@ export function SwipeableRow({
   }
 
   return (
-    <div className={cn("relative overflow-hidden rounded-xl border border-line bg-raised", className)}>
+    <div className={cn(rowSurface, className)}>
       {actionsPanel}
       <div
         ref={contentRef}
-        className="relative z-10 flex touch-pan-y items-center bg-raised"
+        className="relative z-1 flex touch-pan-y items-center bg-[linear-gradient(178deg,var(--color-raised-2),var(--color-raised)_62%,#191c16)]"
         style={{
           transform: `translateX(${offset}px)`,
-          transition: dragX ? "none" : "transform 200ms ease-out",
+          transition: dragX ? "none" : "transform 220ms cubic-bezier(0.2, 0, 0, 1)",
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -172,12 +218,20 @@ export function SwipeableRow({
         <div className="min-w-0 flex-1">{children}</div>
         <button
           type="button"
-          aria-label={actionsLabel}
+          aria-label={open ? `Cerrar ${actionsLabel}` : `Abrir ${actionsLabel}`}
           aria-expanded={open}
           onClick={() => setOpen((o) => !o)}
-          className="press grid size-11 shrink-0 place-items-center text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className={cn(
+            "press grid size-11 shrink-0 place-items-center rounded-full",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-soft",
+            open ? "text-accent" : "text-muted hover:text-fg",
+          )}
         >
-          <MoreHorizontal size={18} aria-hidden />
+          {open ? (
+            <X size={18} aria-hidden className="animate-in zoom-in-75 duration-150" />
+          ) : (
+            <MoreHorizontal size={18} aria-hidden />
+          )}
         </button>
       </div>
     </div>

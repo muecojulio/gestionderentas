@@ -1,10 +1,21 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Building2, Download, LogOut, Store } from "lucide-react";
+import {
+  Building2,
+  Download,
+  Hand,
+  LogOut,
+  Plus,
+  Search,
+  Store,
+  TriangleAlert,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Chip, HScroller } from "@/components/hscroller";
 import { Combobox } from "@/components/combobox";
-import { SwipeableRow } from "@/components/swipeable";
+import { Reveal } from "@/components/reveal";
+import { Badge, SectionTitle } from "@/components/surface";
+import { RowAction, SwipeableRow } from "@/components/swipeable";
 import { DataError } from "@/components/data-error";
 import { Button, ConfirmDialog, Empty } from "@/components/ui";
 import { downloadApartmentExcel } from "@/lib/excel-apartment";
@@ -18,23 +29,24 @@ import {
   type PropertyTipo,
 } from "@/lib/rentals.logic";
 import { useRefreshRentals, useRentals } from "@/lib/use-rentals";
+import { toneStyle, TONE_TEXT, type Tone } from "@/lib/tones";
 
 export const Route = createFileRoute("/departamentos")({ component: Departamentos });
 
 type Filter = "todos" | "rentados" | "libres" | "mora";
 type TipoFilter = "todos" | PropertyTipo;
 
-const FILTERS: { id: Filter; label: string }[] = [
-  { id: "todos", label: "Todos" },
-  { id: "rentados", label: "Rentados" },
-  { id: "libres", label: "Libres" },
-  { id: "mora", label: "Con mora" },
+const FILTERS: { id: Filter; label: string; tone: Tone }[] = [
+  { id: "todos", label: "Todos", tone: "accent" },
+  { id: "rentados", label: "Rentados", tone: "sage" },
+  { id: "libres", label: "Libres", tone: "azure" },
+  { id: "mora", label: "Con mora", tone: "crimson" },
 ];
 
-const TIPO_FILTERS: { id: TipoFilter; label: string }[] = [
-  { id: "todos", label: "Todos" },
-  { id: "departamento", label: "Departamentos" },
-  { id: "accesoria", label: "Accesorias" },
+const TIPO_FILTERS: { id: TipoFilter; label: string; tone: Tone }[] = [
+  { id: "todos", label: "Todos", tone: "iris" },
+  { id: "departamento", label: "Departamentos", tone: "iris" },
+  { id: "accesoria", label: "Accesorias", tone: "amber" },
 ];
 
 function matches(apt: Apartment, filter: Filter, today: string): boolean {
@@ -72,6 +84,9 @@ function Departamentos() {
         value: apt.id,
         label: apt.nombre,
         keywords: `${apt.direccion} ${apt.inquilino}`,
+        detail: [apt.direccion, apt.ocupado ? apt.inquilino : "Libre"]
+          .filter(Boolean)
+          .join(" · "),
       })),
     [portfolio.data],
   );
@@ -79,18 +94,12 @@ function Departamentos() {
   if (portfolio.isPending) {
     return (
       <div className="space-y-5" aria-busy="true" aria-live="polite">
-        <div className="flex items-end justify-between gap-3">
-          <div className="space-y-2">
-            <div className="skeleton h-10 w-44" />
-            <div className="skeleton h-4 w-28" />
-          </div>
-          <div className="skeleton h-12 w-24" />
-        </div>
+        <div className="skeleton h-16 w-full" />
         <div className="skeleton h-12 w-full" />
         <div className="flex gap-2">
-          <div className="skeleton h-11 w-20 rounded-full" />
           <div className="skeleton h-11 w-24 rounded-full" />
-          <div className="skeleton h-11 w-20 rounded-full" />
+          <div className="skeleton h-11 w-28 rounded-full" />
+          <div className="skeleton h-11 w-24 rounded-full" />
         </div>
         <div className="space-y-2">
           <div className="skeleton h-20" />
@@ -124,11 +133,13 @@ function Departamentos() {
     departamento: apartments.filter((apt) => apt.tipo === "departamento").length,
     accesoria: apartments.filter((apt) => apt.tipo === "accesoria").length,
   };
+  const filtering = filter !== "todos" || tipoFilter !== "todos";
 
   async function onExport(id: string) {
     setBusy(id);
     try {
       await downloadApartmentExcel(id);
+      toast.success("Excel listo: revisa tus descargas");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo crear el Excel.");
     } finally {
@@ -160,54 +171,39 @@ function Departamentos() {
   const rowActions = (apt: Apartment) => (
     <>
       {apt.ocupado ? (
-        <button
-          type="button"
-          aria-label={`Marcar que el inquilino de ${apt.nombre} ya salió`}
-          className="press flex h-full items-center gap-1.5 bg-accent/20 px-4 text-sm font-medium text-accent"
+        <RowAction
+          label="Salió"
+          tone="iris"
+          icon={<LogOut size={16} aria-hidden />}
           onClick={() => setVacateTarget(apt)}
-        >
-          <LogOut size={16} aria-hidden />
-          Salió
-        </button>
+        />
       ) : null}
-      <button
-        type="button"
-        aria-label={`Exportar Excel de ${apt.nombre}`}
-        disabled={busy === apt.id}
-        className="press flex h-full items-center gap-1.5 bg-accent px-4 text-sm font-medium text-accent-fg disabled:opacity-50"
+      <RowAction
+        label="Excel"
+        tone="sage"
+        icon={<Download size={16} aria-hidden />}
+        busy={busy === apt.id}
         onClick={() => void onExport(apt.id)}
-      >
-        {busy === apt.id ? (
-          <span
-            className="size-4 animate-spin rounded-full border-2 border-accent-fg/40 border-t-accent-fg"
-            aria-hidden
-          />
-        ) : (
-          <Download size={16} aria-hidden />
-        )}
-        Excel
-      </button>
+      />
     </>
   );
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-4xl">Propiedades</h1>
-          <p className="mt-1 text-sm text-muted">
-            {apartments.length} en tu cartera · {tipoCounts.departamento} deptos ·{" "}
-            {tipoCounts.accesoria} accesorias
-          </p>
-          <p className="mt-1 text-xs text-muted">
-            Desliza una propiedad (o pulsa ⋯) para marcar que el inquilino salió y para exportar su
-            Excel.
-          </p>
-        </div>
-        <Link to="/nuevo">
-          <Button>Nuevo</Button>
-        </Link>
-      </div>
+    <div className="space-y-6">
+      <SectionTitle
+        eyebrow="Cartera"
+        title="Propiedades"
+        detail={`${apartments.length} en total · ${tipoCounts.departamento} deptos · ${tipoCounts.accesoria} accesorias`}
+        icon={<Building2 size={18} aria-hidden />}
+        action={
+          <Link to="/nuevo">
+            <Button size="md">
+              <Plus size={16} aria-hidden />
+              Nuevo
+            </Button>
+          </Link>
+        }
+      />
 
       <Combobox
         label="Buscar propiedad"
@@ -217,92 +213,171 @@ function Departamentos() {
         noResults="No hay propiedades con ese nombre"
       />
 
-      <HScroller label="Estado" activeKey={filter}>
-        {FILTERS.map((item) => (
-          <Chip
-            key={item.id}
-            chipKey={item.id}
-            active={filter === item.id}
-            onClick={() => setFilter(item.id)}
-          >
-            {item.label} · {counts[item.id]}
-          </Chip>
-        ))}
-      </HScroller>
-      <HScroller label="Tipo" activeKey={tipoFilter}>
-        {TIPO_FILTERS.map((item) => (
-          <Chip
-            key={item.id}
-            chipKey={item.id}
-            active={tipoFilter === item.id}
-            onClick={() => setTipoFilter(item.id)}
-          >
-            {item.label} · {tipoCounts[item.id]}
-          </Chip>
-        ))}
-      </HScroller>
+      <div className="space-y-2.5">
+        <HScroller label="Filtros por estado" activeKey={filter}>
+          {FILTERS.map((item) => (
+            <Chip
+              key={item.id}
+              chipKey={item.id}
+              active={filter === item.id}
+              tone={item.tone}
+              count={counts[item.id]}
+              onClick={() => setFilter(item.id)}
+            >
+              {item.label}
+            </Chip>
+          ))}
+        </HScroller>
+        <HScroller label="Filtros por tipo" activeKey={tipoFilter}>
+          {TIPO_FILTERS.map((item) => (
+            <Chip
+              key={item.id}
+              chipKey={item.id}
+              active={tipoFilter === item.id}
+              tone={item.tone}
+              count={tipoCounts[item.id]}
+              onClick={() => setTipoFilter(item.id)}
+            >
+              {item.label}
+            </Chip>
+          ))}
+        </HScroller>
+      </div>
+
+      <p className="flex items-center gap-2 text-xs text-muted">
+        <Hand size={14} aria-hidden className="shrink-0 text-accent" />
+        Desliza una propiedad hacia la izquierda (o pulsa ⋯) para marcar que el inquilino salió y
+        exportar su Excel.
+      </p>
 
       {apartments.length === 0 ? (
         <Empty
           title="Agrega el primero"
           body="Departamentos y accesorias comparten la misma ficha: foto, medidores y contrato. Elige el tipo al crear."
           icon={<Building2 size={28} strokeWidth={1.25} />}
+          action={
+            <Link to="/nuevo">
+              <Button size="lg">Agregar propiedad</Button>
+            </Link>
+          }
         />
       ) : visible.length === 0 ? (
         <Empty
           title="Nada por aquí"
-          body="Ninguna propiedad coincide con este filtro. Prueba con otro."
+          body="Ninguna propiedad coincide con este filtro. Prueba con otro o quita los filtros."
+          icon={<Search size={26} strokeWidth={1.25} />}
+          action={
+            <Button
+              tone="quiet"
+              onClick={() => {
+                setFilter("todos");
+                setTipoFilter("todos");
+              }}
+            >
+              Quitar filtros
+            </Button>
+          }
         />
       ) : (
-        <ul className="space-y-2" aria-label="Propiedades">
-          {visible.map((apt) => {
-            const late = apt.ocupado ? rentMora(apt, today) : null;
-            return (
-              <li key={apt.id}>
-                <SwipeableRow actions={rowActions(apt)} actionsLabel={`Acciones de ${apt.nombre}`}>
-                  <Link
-                    to="/depto/$id"
-                    params={{ id: apt.id }}
-                    className="press flex min-w-0 flex-1 items-center gap-3 rounded-xl py-2 pl-2"
-                  >
-                    {apt.foto ? (
-                      <img
-                        src={apt.foto}
-                        alt=""
-                        loading="lazy"
-                        className="size-16 shrink-0 rounded-lg object-cover"
-                      />
-                    ) : (
-                      <span className="size-16 shrink-0 rounded-lg bg-gradient-to-br from-accent/10 to-bg" />
-                    )}
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-1.5">
-                        {apt.tipo === "accesoria" ? (
-                          <Store size={12} className="shrink-0 text-muted" aria-hidden />
-                        ) : (
-                          <Building2 size={12} className="shrink-0 text-muted" aria-hidden />
-                        )}
-                        <span className="truncate text-[11px] uppercase tracking-wide text-muted">
-                          {TIPO_LABEL[apt.tipo]}
+        <>
+          <p aria-live="polite" className="text-xs text-muted">
+            {filtering
+              ? `Mostrando ${visible.length} de ${apartments.length} propiedades`
+              : `${apartments.length} propiedades`}
+          </p>
+          <ul className="space-y-2.5" aria-label="Propiedades">
+            {visible.map((apt, index) => {
+              const late = apt.ocupado ? rentMora(apt, today) : null;
+              const tone: Tone = late ? "crimson" : apt.ocupado ? "sage" : "azure";
+              return (
+                <li key={apt.id}>
+                  <Reveal index={index % 8}>
+                    <SwipeableRow
+                      actions={rowActions(apt)}
+                      actionsLabel={`Acciones de ${apt.nombre}`}
+                    >
+                      <Link
+                        to="/depto/$id"
+                        params={{ id: apt.id }}
+                        className="press group flex min-w-0 flex-1 items-center gap-3 py-3 pr-1 pl-3"
+                        style={toneStyle(tone)}
+                      >
+                        <span className="relative shrink-0">
+                          {apt.foto ? (
+                            <img
+                              src={apt.foto}
+                              alt=""
+                              loading="lazy"
+                              className="size-16 rounded-xl border border-line object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+                            />
+                          ) : (
+                            <span
+                              aria-hidden
+                              className="photo-fallback grid size-16 place-items-center rounded-xl border border-line"
+                            >
+                              {apt.tipo === "accesoria" ? (
+                                <Store size={22} className="text-muted" strokeWidth={1.4} />
+                              ) : (
+                                <Building2 size={22} className="text-muted" strokeWidth={1.4} />
+                              )}
+                            </span>
+                          )}
+                          {/* Punto de estado sobre la miniatura */}
+                          <span
+                            aria-hidden
+                            className={
+                              late
+                                ? "absolute -right-0.5 -bottom-0.5 size-3.5 rounded-full border-2 border-raised bg-crimson"
+                                : apt.ocupado
+                                  ? "absolute -right-0.5 -bottom-0.5 size-3.5 rounded-full border-2 border-raised bg-sage"
+                                  : "absolute -right-0.5 -bottom-0.5 size-3.5 rounded-full border-2 border-raised bg-azure"
+                            }
+                          />
                         </span>
-                      </span>
-                      <span className="block truncate font-medium">{apt.nombre}</span>
-                      <span className="block truncate text-sm text-muted">
-                        {apt.ocupado ? apt.inquilino || "Rentado" : "Libre"}
-                        {apt.ocupado ? ` · ${formatMoney(apt.rentaCentavos)}` : ""}
-                      </span>
-                      {late ? (
-                        <span className="block truncate text-sm text-accent">
-                          Lleva {diasTexto(late.days)} sin pagar
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-1.5 text-[11px] tracking-wide text-muted uppercase">
+                            <span aria-hidden className={TONE_TEXT[tone]}>
+                              {apt.tipo === "accesoria" ? (
+                                <Store size={12} />
+                              ) : (
+                                <Building2 size={12} />
+                              )}
+                            </span>
+                            <span className="truncate">{TIPO_LABEL[apt.tipo]}</span>
+                          </span>
+                          <span className="mt-0.5 block truncate font-display text-xl leading-tight text-fg">
+                            {apt.nombre}
+                          </span>
+                          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                            {late ? (
+                              <Badge tone="crimson">
+                                <TriangleAlert size={11} aria-hidden />
+                                {diasTexto(late.days)} sin pagar
+                              </Badge>
+                            ) : apt.ocupado ? (
+                              <>
+                                <span className="truncate text-muted">
+                                  {apt.inquilino || "Rentado"}
+                                </span>
+                                <span className="num font-medium text-accent-soft">
+                                  {formatMoney(apt.rentaCentavos)}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="truncate text-muted">
+                                Libre{apt.direccion ? ` · ${apt.direccion}` : ""}
+                              </span>
+                            )}
+                          </span>
                         </span>
-                      ) : null}
-                    </span>
-                  </Link>
-                </SwipeableRow>
-              </li>
-            );
-          })}
-        </ul>
+                      </Link>
+                    </SwipeableRow>
+                  </Reveal>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
       <ConfirmDialog
         open={vacateTarget != null}

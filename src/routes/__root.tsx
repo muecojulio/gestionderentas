@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
+import { SpotlightLayer } from "@/components/spotlight-layer";
 import { Frame } from "@/components/shell";
 import appCss from "../styles.css?url";
 
@@ -31,13 +32,23 @@ export const Route = createRootRoute({
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Outfit:wght@400;500;600&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650;9..144,750&family=Outfit:wght@300..700&display=swap",
       },
       { rel: "manifest", href: "/__grok/manifest.webmanifest" },
     ],
   }),
   component: RootComponent,
 });
+
+/** Aviso emergente con la misma piel que el resto de la app. */
+const toastStyle = {
+  background: "linear-gradient(178deg, #242821 0%, #1c1f19 62%, #191c16 100%)",
+  border: "1px solid #343930",
+  color: "#f4f1e9",
+  borderRadius: "1.1rem",
+  boxShadow:
+    "inset 0 1px 0 rgb(255 255 255 / 0.07), 0 26px 50px -26px rgb(0 0 0 / 0.95)",
+};
 
 function RootComponent() {
   const [client] = useState(
@@ -52,20 +63,42 @@ function RootComponent() {
         <HeadContent />
       </head>
       <body>
-        {/* Fondo vivo: aurora animada + grano (decorativo, oculto a lectores) */}
+        {/* Fondo vivo por capas: cielo, aurora, retícula, grano y viñeta.
+            Todo decorativo, oculto a lectores de pantalla y sin puntero. */}
+        <div className="sky" aria-hidden="true" />
         <div className="aurora" aria-hidden="true">
           <i />
           <i />
           <i />
+          <i />
         </div>
+        <div className="ledger" aria-hidden="true" />
         <div className="grain" aria-hidden="true" />
+        <div className="vignette" aria-hidden="true" />
+        {/* Si no hay JavaScript, lo que entra con scroll se queda visible. */}
+        <noscript>
+          <style>{".reveal{opacity:1 !important;transform:none !important}"}</style>
+        </noscript>
+        <SpotlightLayer />
         <PreviewHostBridge />
         <AuthProvider>
           <QueryClientProvider client={client}>
             <Frame>
               <Outlet />
             </Frame>
-            <Toaster theme="dark" position="top-center" />
+            <Toaster
+              theme="dark"
+              position="top-center"
+              toastOptions={{
+                style: toastStyle,
+                classNames: {
+                  title: "text-sm font-medium",
+                  description: "text-xs text-[#a5a296]",
+                  success: "text-[#96b46c]",
+                  error: "text-[#e2605a]",
+                },
+              }}
+            />
           </QueryClientProvider>
         </AuthProvider>
         <Scripts />

@@ -1,5 +1,6 @@
+import type { CSSProperties } from "react";
 import type { ErrorComponentProps } from "@tanstack/react-router";
-import { TriangleAlert } from "lucide-react";
+import { RotateCcw, TriangleAlert } from "lucide-react";
 
 const FALLBACK_MESSAGE = "An unexpected error occurred. Try reloading the page.";
 
@@ -9,21 +10,45 @@ function errorMessage(error: unknown): string {
   return FALLBACK_MESSAGE;
 }
 
+/**
+ * Pantalla de error global con la misma piel que el resto de la app (carbón +
+ * terracota). El mensaje original del error siempre queda visible. Los colores
+ * van en duro (no como variables) porque esta pantalla puede aparecer justo
+ * cuando algo más falló.
+ */
 export function AppErrorComponent({ error }: ErrorComponentProps) {
   return (
     <main
-      className={
-        "flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center " +
-        "bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50"
-      }
+      className="relative grid min-h-dvh place-items-center overflow-hidden px-6 py-12"
+      style={{ background: "#121410", color: "#f4f1e9" }}
     >
-      <span className="text-red-500" aria-hidden="true">
-        <TriangleAlert className="size-10" strokeWidth={2} />
-      </span>
-      <h1 className="text-lg font-semibold">Something went wrong</h1>
-      <p className="max-w-md text-sm break-words text-zinc-500 dark:text-zinc-400">
-        {errorMessage(error)}
-      </p>
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -top-24 left-1/2 size-72 -translate-x-1/2 rounded-full bg-crimson/18 blur-3xl"
+      />
+      <div className="card relative w-full max-w-md space-y-4 p-6 text-center">
+        <span
+          aria-hidden
+          className="tile mx-auto size-14 float"
+          style={{ "--tone": "#e2605a" } as CSSProperties}
+        >
+          <TriangleAlert size={24} />
+        </span>
+        <h1 className="font-display text-3xl" style={{ color: "#f4f1e9" }}>
+          Algo se rompió
+        </h1>
+        <p className="break-words text-sm" style={{ color: "#a5a296" }}>
+          {errorMessage(error)}
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="btn-quiet press lift mx-auto inline-flex h-12 items-center gap-2 rounded-xl px-5 text-sm font-medium"
+        >
+          <RotateCcw size={16} aria-hidden />
+          Volver a cargar
+        </button>
+      </div>
     </main>
   );
 }

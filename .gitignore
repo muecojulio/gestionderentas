@@ -5,3 +5,4 @@ dist
 *.log
 .grok/og-pending
 .tanstack
+.grok/preview.pid

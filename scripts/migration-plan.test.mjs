@@ -58,8 +58,16 @@ test("non-.sql entries are dropped (readdir also yields the auth/ directory)", (
 
 test("the auth schema ships outside the globbed directory", () => {
   const migrationsDir = join(projectRoot(), "migrations");
-  assert.deepEqual(pendingMigrations(readdirSync(migrationsDir), []), []);
-  assert.ok(readdirSync(join(migrationsDir, "auth")).includes("0001_auth.sql"));
+  const pending = pendingMigrations(readdirSync(migrationsDir), []);
+  // Sign-in is off, so the Better Auth copy must not sit where db.ts globs:
+  // a fresh database would create identity tables nothing queries.
+  assert.ok(
+    !pending.some(({ name }) => name === AUTH_MIGRATION),
+    `migrations/${AUTH_MIGRATION} is in the globbed directory — the auth-on copy was not removed`,
+  );
+  assert.ok(readdirSync(join(migrationsDir, "auth")).includes(AUTH_MIGRATION));
+  // The app's own schema still applies from the same directory.
+  assert.ok(pending.some(({ name }) => name === "0002_rentals.sql"), pending);
 });
 
 test("this workspace's auth schema copy is byte-identical to its source", () => {

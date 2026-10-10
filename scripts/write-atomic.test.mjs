@@ -164,9 +164,16 @@ test("cli: relative paths follow the script's root, not the caller's cwd", () =>
   assert.equal(existsSync(join(root, "public/og.jpg")), false);
 });
 
-test("every hand-over the og skill prints is one this script accepts", () => {
+const OG_SKILL_DIR = join(TEMPLATE_ROOT, ".grok/skills/og");
+
+test(
+  "every hand-over the og skill prints is one this script accepts",
+  // The skill's prompts ship with the platform sandbox, not with this repo, so a
+  // plain checkout has no documented hand-overs to check.
+  { skip: existsSync(OG_SKILL_DIR) ? false : ".grok/skills/og is not in this checkout" },
+  () => {
   // The card and banner recipes live in the skill's references/, not SKILL.md.
-  const skillDir = join(TEMPLATE_ROOT, ".grok/skills/og");
+  const skillDir = OG_SKILL_DIR;
   const docs = [
     join(skillDir, "SKILL.md"),
     ...readdirSync(join(skillDir, "references")).map((f) => join(skillDir, "references", f)),
@@ -185,7 +192,8 @@ test("every hand-over the og skill prints is one this script accepts", () => {
       line,
     );
   }
-});
+},
+);
 
 test("cli: a missing staged file fails without touching the target", () => {
   const root = makeWorkspace();

@@ -97,7 +97,7 @@ export default defineConfig(({ command, isPreview }) => ({
   resolve: { tsconfigPaths: true },
   plugins: [
     pgliteBootstrapPlugin(),
-    // Dev-only /__app-env, read by scripts/check-auth-invariant.mjs.
+    // Dev-only /__app-env: the VITE_* flags this dev server resolved.
     appEnvPlugin(),
     // Encabezados de seguridad (CSP, nosniff, referrer-policy, …) en dev.
     securityHeadersPlugin(),

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Building2 } from "lucide-react";
-import type { Apartment, ApartmentInput, DepositoEstado } from "@/lib/rentals.logic";
-import { centavosToInput, pesosToCentavos } from "@/lib/rentals.logic";
+import { Building2, Store } from "lucide-react";
+import type { Apartment, ApartmentInput, DepositoEstado, PropertyTipo } from "@/lib/rentals.logic";
+import { centavosToInput, pesosToCentavos, TIPO_LABEL } from "@/lib/rentals.logic";
 import { Accordion } from "@/components/accordion";
 import { compressPhoto } from "@/components/photo";
 import { Button, Field, TextArea, TextInput, Toggle } from "@/components/ui";
@@ -22,6 +22,7 @@ export function ApartmentForm({
   onSubmit: (value: ApartmentInput) => void;
 }) {
   const [nombre, setNombre] = useState(initial?.nombre ?? "");
+  const [tipo, setTipo] = useState<PropertyTipo>(initial?.tipo ?? "departamento");
   const [direccion, setDireccion] = useState(initial?.direccion ?? "");
   const [foto, setFoto] = useState<string | null>(initial?.foto ?? null);
   const [medidorLuz, setMedidorLuz] = useState(initial?.medidorLuz ?? "");
@@ -84,6 +85,7 @@ export function ApartmentForm({
     onSubmit({
       id: initial?.id,
       nombre,
+      tipo,
       direccion,
       foto,
       medidorLuz,
@@ -118,11 +120,41 @@ export function ApartmentForm({
         submit();
       }}
     >
-      <Accordion title="El departamento">
+      <Accordion title="La propiedad">
         <div className="space-y-3">
+        <Field label="Tipo">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              aria-pressed={tipo === "departamento"}
+              onClick={() => setTipo("departamento")}
+              className={
+                tipo === "departamento"
+                  ? "press flex items-center justify-center gap-2 rounded-xl border border-accent bg-accent/10 px-3 py-3 text-sm font-medium text-fg"
+                  : "press flex items-center justify-center gap-2 rounded-xl border border-line bg-raised px-3 py-3 text-sm text-muted"
+              }
+            >
+              <Building2 size={16} aria-hidden />
+              Departamento
+            </button>
+            <button
+              type="button"
+              aria-pressed={tipo === "accesoria"}
+              onClick={() => setTipo("accesoria")}
+              className={
+                tipo === "accesoria"
+                  ? "press flex items-center justify-center gap-2 rounded-xl border border-accent bg-accent/10 px-3 py-3 text-sm font-medium text-fg"
+                  : "press flex items-center justify-center gap-2 rounded-xl border border-line bg-raised px-3 py-3 text-sm text-muted"
+              }
+            >
+              <Store size={16} aria-hidden />
+              Accesoria
+            </button>
+          </div>
+        </Field>
         <button
           type="button"
-          aria-label={foto ? "Cambiar la foto del departamento" : "Subir foto del departamento"}
+          aria-label={foto ? `Cambiar la foto de ${TIPO_LABEL[tipo].toLowerCase()}` : `Subir foto de ${TIPO_LABEL[tipo].toLowerCase()}`}
           className="press group relative block w-full overflow-hidden rounded-xl border border-line bg-raised"
           onClick={() => document.getElementById("foto-depto")?.click()}
         >

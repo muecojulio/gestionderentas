@@ -1,6 +1,25 @@
+export type PropertyTipo = "departamento" | "accesoria";
+
+export const TIPO_LABEL: Record<PropertyTipo, string> = {
+  departamento: "Departamento",
+  accesoria: "Accesoria",
+};
+
+export const TIPO_PLURAL: Record<PropertyTipo, string> = {
+  departamento: "Departamentos",
+  accesoria: "Accesorias",
+};
+
+export const TIPOS: readonly PropertyTipo[] = ["departamento", "accesoria"] as const;
+
+export function tipoOf(value: unknown): PropertyTipo | null {
+  return value === "departamento" || value === "accesoria" ? value : null;
+}
+
 export type Apartment = {
   id: string;
   nombre: string;
+  tipo: PropertyTipo;
   direccion: string;
   foto: string | null;
   medidorLuz: string;
@@ -59,6 +78,7 @@ export type Portfolio = {
 export type ApartmentInput = {
   id?: string;
   nombre: string;
+  tipo: PropertyTipo;
   direccion: string;
   foto: string | null;
   medidorLuz: string;
@@ -698,6 +718,11 @@ export function parseApartmentInput(
   const o = raw as Record<string, unknown>;
   const nombre = text(o.nombre, 80);
   if (nombre.length < 2) return { ok: false, error: "Ponle un nombre al departamento." };
+  const tipoRaw = text(o.tipo, 20).toLowerCase();
+  const tipo: PropertyTipo = tipoOf(tipoRaw) ?? "departamento";
+  if (tipoRaw && !tipoOf(tipoRaw)) {
+    return { ok: false, error: "El tipo debe ser Departamento o Accesoria." };
+  }
   const id = o.id == null || o.id === "" ? undefined : text(o.id, 40);
   if (id && !UUID.test(id)) return { ok: false, error: "Departamento inválido." };
   const foto = o.foto == null || o.foto === "" ? null : String(o.foto);
@@ -760,6 +785,7 @@ export function parseApartmentInput(
     value: {
       id,
       nombre,
+      tipo,
       direccion: text(o.direccion, 160),
       foto,
       medidorLuz: text(o.medidorLuz, 40),

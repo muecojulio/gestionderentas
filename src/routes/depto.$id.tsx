@@ -15,8 +15,10 @@ import {
   saveApartment,
   vacateApartment,
 } from "@/lib/rentals.api";
+import { Building2, Store } from "lucide-react";
 import {
   DEPOSITO_LABEL,
+  TIPO_LABEL,
   diasTexto,
   formatMoney,
   increaseDue,
@@ -148,7 +150,10 @@ function Detail() {
         </div>
       ) : null}
       <div>
-        <p className="text-sm text-muted">{apt.ocupado ? "Rentado" : "Libre"}</p>
+        <p className="inline-flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted">
+          {apt.tipo === "accesoria" ? <Store size={12} aria-hidden /> : <Building2 size={12} aria-hidden />}
+          {TIPO_LABEL[apt.tipo]} · {apt.ocupado ? "Rentado" : "Libre"}
+        </p>
         <h1 className="font-display text-4xl">{apt.nombre}</h1>
         {apt.direccion ? <p className="mt-1 text-sm text-muted">{apt.direccion}</p> : null}
       </div>
@@ -335,7 +340,7 @@ function Detail() {
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="¿Eliminar este departamento?"
+        title={`¿Eliminar ${TIPO_LABEL[apt.tipo].toLowerCase()}?`}
         body="Se borra la ficha completa, incluida la foto y los medidores. Esta acción no se deshace."
         confirmLabel="Eliminar"
         pending={pending}

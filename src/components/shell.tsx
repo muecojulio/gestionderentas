@@ -106,7 +106,7 @@ export function Frame({ children }: { children: ReactNode }) {
           <Link to="/" className="md:hidden">
             <span className="font-display text-2xl leading-none">Gestión</span>
           </Link>
-          <p className="hidden text-sm text-muted md:block">Tus departamentos, en un solo lugar</p>
+          <p className="hidden text-sm text-muted md:block">Tus departamentos y accesorias, en un solo lugar</p>
           <Link
             to="/avisos"
             aria-label="Avisos"
@@ -125,7 +125,7 @@ export function Frame({ children }: { children: ReactNode }) {
           >
             <HardDrive size={14} className="mt-0.5 shrink-0" aria-hidden />
             <span>
-              La base del servidor no está disponible: tus departamentos se guardan en
+              La base del servidor no está disponible: tus propiedades se guardan en
               este dispositivo. Si conectas una base de datos, la app vuelve a usarla sin
               perder lo que ya anotaste aquí.
             </span>

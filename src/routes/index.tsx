@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Building2,
   CalendarDays,
+  Store,
   FileWarning,
   TrendingUp,
 } from "lucide-react";
@@ -18,6 +19,7 @@ import {
   formatMoney,
   monthTitle,
   rentMora,
+  TIPO_LABEL,
   tenureLabel,
 } from "@/lib/rentals.logic";
 import { useScrollEdges } from "@/lib/motion";
@@ -59,7 +61,7 @@ function Home() {
   if (portfolio.isError || !portfolio.data) {
     return (
       <DataError
-        title="No se pudieron cargar los departamentos."
+        title="No se pudieron cargar las propiedades."
         error={portfolio.error}
         onRetry={() => void portfolio.refetch()}
       />
@@ -84,7 +86,8 @@ function Home() {
           </h1>
           <p className="mt-2 text-sm text-muted">
             Por recibir este mes · {formatMoney(received)} ya anotado · {occupied.length} de{" "}
-            {apartments.length} rentados
+            {apartments.length} rentados · {apartments.filter((a) => a.tipo === "departamento").length} deptos ·{" "}
+            {apartments.filter((a) => a.tipo === "accesoria").length} accesorias
           </p>
           {rate.data ? (
             <p
@@ -134,12 +137,12 @@ function Home() {
 
       {apartments.length === 0 ? (
         <Empty
-          title="Todavía no hay departamentos"
-          body="Agrega el primero con su foto, medidores y, si ya tiene inquilino, el contrato."
+          title="Todavía no hay propiedades"
+          body="Agrega el primero con su foto, medidores y, si ya tiene inquilino, el contrato. Elige si es departamento o accesoria."
           icon={<Building2 size={28} strokeWidth={1.25} />}
           action={
             <Link to="/nuevo">
-              <Button>Agregar departamento</Button>
+              <Button>Agregar propiedad</Button>
             </Link>
           }
         />
@@ -188,6 +191,10 @@ function Home() {
                           {apt.ocupado ? "Rentado" : "Libre"}
                         </span>
                       </div>
+                      <p className="flex items-center gap-1 text-xs uppercase tracking-wide text-muted">
+                        {apt.tipo === "accesoria" ? <Store size={10} aria-hidden /> : <Building2 size={10} aria-hidden />}
+                        {TIPO_LABEL[apt.tipo]}
+                      </p>
                       <p className="text-sm text-fg">
                         {apt.ocupado ? formatMoney(apt.rentaCentavos) : "Sin inquilino"}
                       </p>

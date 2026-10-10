@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getSql } from "@/lib/db";
+import { getSql, type Sql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
 import {
   BANXICO_DATASET_URL,
@@ -100,18 +100,28 @@ export const getExchangeRate = createServerFn({ method: "GET" })
       return toExchangeRate(mem.quote, new Date(mem.at).toISOString(), false);
     }
 
-    const sql = await getSql();
-    const cached = await sql<{
-      rate: unknown;
-      source: string;
-      source_label: string;
-      rate_date: string;
-      fetched_at: string | Date;
-    }>`
-      select rate, source, source_label, rate_date, fetched_at
-      from exchange_cache
-      where pair = ${EXCHANGE_PAIR}
-    `;
+    // Sin base de datos (por ejemplo un despliegue sin `DATABASE_URL`) la
+    // caché no existe, pero la tasa se puede consultar igual: este dato es
+    // informativo y no debe tumbar la pantalla.
+    let sql: Sql | null = null;
+    try {
+      sql = await getSql();
+    } catch {
+      sql = null;
+    }
+    const cached = sql
+      ? await sql<{
+          rate: unknown;
+          source: string;
+          source_label: string;
+          rate_date: string;
+          fetched_at: string | Date;
+        }>`
+          select rate, source, source_label, rate_date, fetched_at
+          from exchange_cache
+          where pair = ${EXCHANGE_PAIR}
+        `
+      : [];
     const row = cached[0];
     const cachedAt = row ? new Date(row.fetched_at).getTime() : 0;
     const rate = row ? Number(row.rate) : NaN;
@@ -130,7 +140,7 @@ export const getExchangeRate = createServerFn({ method: "GET" })
     const quote = await fetchQuote();
     if (quote) {
       memory.set(EXCHANGE_PAIR, { quote, at: now });
-      await sql`
+      if (sql) await sql`
         insert into exchange_cache (pair, rate, source, source_label, rate_date, fetched_at)
         values (${EXCHANGE_PAIR}, ${quote.rate}, ${quote.source}, ${quote.sourceLabel}, ${quote.rateDate}, now())
         on conflict (pair) do update

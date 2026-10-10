@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
-cd /workspace
+# El directorio del script, no una ruta fija: así revive igual si el workspace
+# se monta en otro sitio.
+cd "$(dirname "$0")"
 node scripts/preview.mjs stop || true
 if curl -sf -o /dev/null --max-time 2 http://127.0.0.1:8080/; then
   exit 0

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { ApartmentForm } from "@/components/apartment-form";
-import { saveApartment } from "@/lib/rentals.functions";
+import { saveApartment } from "@/lib/rentals.api";
 import type { ApartmentInput } from "@/lib/rentals.logic";
 import { useRefreshRentals } from "@/lib/use-rentals";
 
@@ -17,7 +17,7 @@ function Nuevo() {
   async function onSubmit(value: ApartmentInput) {
     setPending(true);
     try {
-      const result = await saveApartment({ data: value });
+      const result = await saveApartment(value);
       if (!result.ok) {
         if ("code" in result && result.code === "blacklist") setWarning(result.error);
         else toast.error(result.error);

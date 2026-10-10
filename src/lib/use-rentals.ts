@@ -1,12 +1,21 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getExchangeRate, type ExchangeRate } from "@/lib/exchange.functions";
 import {
+  dbHealth,
   listBlacklist,
   listHolidays,
   listIncomeTimeline,
   listPortfolio,
   type IncomePoint,
-} from "@/lib/rentals.functions";
+} from "@/lib/rentals.api";
+
+/**
+ * Los datos se piden desde el navegador. En el servidor no tiene sentido: no
+ * hay `localStorage` y el HTML se envía con el esqueleto de carga, así que
+ * hacer la consulta durante el render del servidor solo gastaría una conexión
+ * (y, si la base no está, ensuciaría los registros del despliegue).
+ */
+const browserOnly = typeof window !== "undefined";
 
 /**
  * El inicio de sesión se eliminó; todas las consultas se activan de inmediato
@@ -16,16 +25,19 @@ export function useRentals() {
   const portfolio = useQuery({
     queryKey: ["portfolio"],
     queryFn: () => listPortfolio(),
+    enabled: browserOnly,
     staleTime: 30_000,
   });
   const holidays = useQuery({
     queryKey: ["holidays"],
     queryFn: () => listHolidays(),
+    enabled: browserOnly,
     staleTime: 12 * 60 * 60 * 1000,
   });
   const blacklist = useQuery({
     queryKey: ["blacklist"],
     queryFn: () => listBlacklist(),
+    enabled: browserOnly,
     staleTime: 30_000,
   });
   return { portfolio, holidays, blacklist };
@@ -36,6 +48,7 @@ export function useExchangeRate() {
   return useQuery<ExchangeRate | null>({
     queryKey: ["exchange-rate"],
     queryFn: () => getExchangeRate(),
+    enabled: browserOnly,
     staleTime: 6 * 60 * 60 * 1000,
     gcTime: 24 * 60 * 60 * 1000,
     retry: 1,
@@ -47,8 +60,23 @@ export function useIncomeTimeline() {
   return useQuery<IncomePoint[]>({
     queryKey: ["income-timeline"],
     queryFn: () => listIncomeTimeline(),
+    enabled: browserOnly,
     staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * ¿Los datos se están guardando en este dispositivo en lugar del servidor?
+ * Sirve para avisarlo en la interfaz sin volver a sondear la base.
+ */
+export function useDataHealth() {
+  return useQuery({
+    queryKey: ["data-health"],
+    queryFn: () => dbHealth(),
+    enabled: browserOnly,
+    staleTime: 60_000,
+    retry: 1,
   });
 }
 

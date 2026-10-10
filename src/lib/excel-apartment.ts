@@ -1,5 +1,5 @@
 import writeXlsxFile from "write-excel-file/browser";
-import { exportApartment } from "@/lib/rentals.functions";
+import { exportApartment } from "@/lib/rentals.api";
 import {
   DEPOSITO_LABEL,
   diasTexto,
@@ -202,7 +202,7 @@ function incrementos(adjustments: RentAdjustment[]): Cell[][] {
 }
 
 export async function downloadApartmentExcel(id: string): Promise<void> {
-  const result = await exportApartment({ data: id });
+  const result = await exportApartment(id);
   if (!result.ok) throw new Error(result.error);
   const { apartment, history, receipts, adjustments, today } = result;
   const book = await writeXlsxFile([

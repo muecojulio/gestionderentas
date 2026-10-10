@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getSql, type Sql } from "@/lib/db";
+import { checkDatabase, getSql, type DbStatus, type Sql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
 import {
   blacklistHit,
@@ -100,6 +100,18 @@ function mapApartment(row: ApartmentRow): Apartment {
     ultimoIncremento: row.ultimo_incremento || null,
   };
 }
+
+/**
+ * ¿Puede el servidor servir los datos? El navegador lo pregunta antes de cada
+ * tanda de consultas: si la base no está (por ejemplo un despliegue en Vercel
+ * sin `DATABASE_URL`), la app sigue funcionando con el respaldo local del
+ * dispositivo en vez de quedarse en "no se pudieron cargar".
+ *
+ * Nunca falla por sí misma: devuelve el motivo.
+ */
+export const getDataHealth = createServerFn({ method: "GET" }).handler(
+  async (): Promise<DbStatus> => checkDatabase(),
+);
 
 async function namesBlocked(sql: Sql, userId: string, nombre: string) {
   const rows = await sql<{ nombre: string }>`

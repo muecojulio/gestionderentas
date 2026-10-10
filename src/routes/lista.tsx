@@ -4,7 +4,7 @@ import { ShieldBan, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { SwipeableRow } from "@/components/swipeable";
 import { Button, Empty, Field, TextArea, TextInput } from "@/components/ui";
-import { addBlacklist, removeBlacklist } from "@/lib/rentals.functions";
+import { addBlacklist, removeBlacklist } from "@/lib/rentals.api";
 import { useActionStatus } from "@/lib/use-action-status";
 import { useRefreshRentals, useRentals } from "@/lib/use-rentals";
 
@@ -22,7 +22,7 @@ function Lista() {
   async function onAdd() {
     await save.run(async () => {
       try {
-        const result = await addBlacklist({ data: { nombre, telefono, motivo } });
+        const result = await addBlacklist({ nombre, telefono, motivo });
         if (!result.ok) {
           toast.error(result.error);
           return false;
@@ -43,7 +43,7 @@ function Lista() {
   async function remove(id: string) {
     setRemoving(id);
     try {
-      await removeBlacklist({ data: id });
+      await removeBlacklist(id);
       refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo quitar.");

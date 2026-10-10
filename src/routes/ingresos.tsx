@@ -4,9 +4,10 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, TrendingUp } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
+import { DataError } from "@/components/data-error";
 import { Toggle } from "@/components/ui";
 import { formatRate, formatUsd } from "@/lib/exchange";
-import { listMonth, setReceipt } from "@/lib/rentals.functions";
+import { listMonth, setReceipt } from "@/lib/rentals.api";
 import {
   diasTexto,
   formatMoney,
@@ -44,7 +45,7 @@ function Ingresos() {
   const mes = cursor?.mes ?? portfolio.data?.mes;
   const month = useQuery({
     queryKey: ["month", anio, mes],
-    queryFn: () => listMonth({ data: { anio: anio as number, mes: mes as number } }),
+    queryFn: () => listMonth(anio as number, mes as number),
     enabled: anio != null && mes != null,
     // Conserva el mes anterior visible mientras llega el nuevo (sin parpadeo).
     placeholderData: keepPreviousData,
@@ -66,7 +67,15 @@ function Ingresos() {
       </div>
     );
   }
-  if (portfolio.isError || !portfolio.data) return <p className="text-muted">No se pudieron cargar.</p>;
+  if (portfolio.isError || !portfolio.data) {
+    return (
+      <DataError
+        title="No se pudieron cargar los departamentos."
+        error={portfolio.error}
+        onRetry={() => void portfolio.refetch()}
+      />
+    );
+  }
   const today = portfolio.data.today;
   const atNow = anio === portfolio.data.anio && mes === portfolio.data.mes;
   const older = shiftMonth(anio, mes, -1);
@@ -84,7 +93,7 @@ function Ingresos() {
   async function toggle(id: string, receivedNow: boolean) {
     setBusy(id);
     try {
-      const result = await setReceipt({ data: { apartmentId: id, received: receivedNow, anio, mes } });
+      const result = await setReceipt({ apartmentId: id, received: receivedNow, anio: anio ?? null, mes: mes ?? null });
       if (!result.ok) {
         toast.error(result.error);
         return;

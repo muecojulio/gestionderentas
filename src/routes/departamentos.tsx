@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Chip, HScroller } from "@/components/hscroller";
 import { Combobox } from "@/components/combobox";
 import { SwipeableRow } from "@/components/swipeable";
+import { DataError } from "@/components/data-error";
 import { Button, Empty } from "@/components/ui";
 import { downloadApartmentExcel } from "@/lib/excel-apartment";
 import { formatMoney, rentMora, diasTexto, type Apartment } from "@/lib/rentals.logic";
@@ -76,9 +77,11 @@ function Departamentos() {
   }
   if (portfolio.isError || !portfolio.data) {
     return (
-      <Button tone="quiet" onClick={() => void portfolio.refetch()}>
-        Reintentar
-      </Button>
+      <DataError
+        title="No se pudieron cargar los departamentos."
+        error={portfolio.error}
+        onRetry={() => void portfolio.refetch()}
+      />
     );
   }
   const { apartments, today } = portfolio.data;

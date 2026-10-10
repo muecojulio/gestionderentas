@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { AnimatedCounter, ProgressRing } from "@/components/animated-counter";
 import { EdgeFades } from "@/components/hscroller";
+import { DataError } from "@/components/data-error";
 import { Button, Empty } from "@/components/ui";
 import { formatRate, formatUsd } from "@/lib/exchange";
 import {
@@ -57,12 +58,11 @@ function Home() {
   }
   if (portfolio.isError || !portfolio.data) {
     return (
-      <div className="space-y-3">
-        <p className="text-sm text-muted">No se pudieron cargar los departamentos.</p>
-        <Button tone="quiet" onClick={() => void portfolio.refetch()}>
-          Reintentar
-        </Button>
-      </div>
+      <DataError
+        title="No se pudieron cargar los departamentos."
+        error={portfolio.error}
+        onRetry={() => void portfolio.refetch()}
+      />
     );
   }
   const { apartments, today, anio, mes } = portfolio.data;

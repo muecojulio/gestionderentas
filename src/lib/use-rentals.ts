@@ -1,5 +1,4 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getExchangeRate, type ExchangeRate } from "@/lib/exchange.functions";
 import {
   dbHealth,
   listBlacklist,
@@ -41,18 +40,6 @@ export function useRentals() {
     staleTime: 30_000,
   });
   return { portfolio, holidays, blacklist };
-}
-
-/** Tipo de cambio USD→MXN (Banxico vía GitHub / BCE). Caché: 6 h. */
-export function useExchangeRate() {
-  return useQuery<ExchangeRate | null>({
-    queryKey: ["exchange-rate"],
-    queryFn: () => getExchangeRate(),
-    enabled: browserOnly,
-    staleTime: 6 * 60 * 60 * 1000,
-    gcTime: 24 * 60 * 60 * 1000,
-    retry: 1,
-  });
 }
 
 /** Cobros por mes de los últimos 12 meses (gráfica de Ingresos). */

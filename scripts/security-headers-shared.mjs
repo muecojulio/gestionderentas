@@ -6,11 +6,12 @@
  *
  * Endurecen cada respuesta sin romper el modo preview: la app se incrusta a
  * propósito en el host de la plataforma (live preview), así que NO se envía
- * `X-Frame-Options` ni `frame-ancestors` — la aislaría del preview. La
- * superficie de sitios hermanos ya está cubierta con cookies `__Host-` y la
- * verificación Fetch-Metadata de `src/lib/auth/isolation.server.ts`. Tampoco se
- * envía HSTS: las respuestas llegan al navegador a través del host proxy del
- * preview, y un HSTS aquí se aplicaría a ese host compartido.
+ * `X-Frame-Options` ni `frame-ancestors` — la aislaría del preview. No hay
+ * inicio de sesión ni cookies de sesión que proteger (la app es de un solo
+ * usuario local), así que no hace falta una verificación Fetch-Metadata
+ * aparte. Tampoco se envía HSTS: las respuestas llegan al navegador a través
+ * del host proxy del preview, y un HSTS aquí se aplicaría a ese host
+ * compartido.
  */
 
 /**

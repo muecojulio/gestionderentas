@@ -114,11 +114,6 @@ function storage(): Storage | null {
   }
 }
 
-/** ¿Este navegador puede guardar datos aunque el servidor no tenga base? */
-export function hasLocalStorage(): boolean {
-  return storage() !== null;
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -627,17 +622,4 @@ export function localRemoveBlacklist(id: unknown): Result {
   });
 }
 
-/** Vacía el respaldo local (se usa desde la interfaz, con confirmación). */
-export function localClearAll(): void {
-  writeDb(structuredClone(EMPTY));
-}
 
-/** Departamento suelto, con los campos derivados (lo usa la ficha/Excel). */
-export function localApartment(id: string): Apartment | null {
-  const db = readDb();
-  const today = mexicoToday();
-  const anio = Number(today.slice(0, 4));
-  const mes = Number(today.slice(5, 7));
-  const found = db.apartments.find((apt) => apt.id === id);
-  return found ? hydrate(db, found, anio, mes) : null;
-}

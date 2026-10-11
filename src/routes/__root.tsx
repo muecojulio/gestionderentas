@@ -2,7 +2,6 @@ import { useState } from "react";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
-import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { SpotlightLayer } from "@/components/spotlight-layer";
 import { Frame } from "@/components/shell";
@@ -81,26 +80,24 @@ function RootComponent() {
         </noscript>
         <SpotlightLayer />
         <PreviewHostBridge />
-        <AuthProvider>
-          <QueryClientProvider client={client}>
-            <Frame>
-              <Outlet />
-            </Frame>
-            <Toaster
-              theme="dark"
-              position="top-center"
-              toastOptions={{
-                style: toastStyle,
-                classNames: {
-                  title: "text-sm font-medium",
-                  description: "text-xs text-[#a5a296]",
-                  success: "text-[#96b46c]",
-                  error: "text-[#e2605a]",
-                },
-              }}
-            />
-          </QueryClientProvider>
-        </AuthProvider>
+        <QueryClientProvider client={client}>
+          <Frame>
+            <Outlet />
+          </Frame>
+          <Toaster
+            theme="dark"
+            position="top-center"
+            toastOptions={{
+              style: toastStyle,
+              classNames: {
+                title: "text-sm font-medium",
+                description: "text-xs text-[#a5a296]",
+                success: "text-[#96b46c]",
+                error: "text-[#e2605a]",
+              },
+            }}
+          />
+        </QueryClientProvider>
         <Scripts />
       </body>
     </html>

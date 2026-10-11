@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { UserButton } from "@/lib/auth/gates";
 import {
+  ArrowRight,
   BadgeCheck,
   BellRing,
   CalendarClock,
@@ -82,17 +82,10 @@ const RULES = [
 function Avisos() {
   const { portfolio, holidays } = useRentals();
   const [state, setState] = useState<NotifState>("unsupported");
-  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     setState(notifState());
-    const onPrompt = (event: Event) => {
-      event.preventDefault();
-      setInstallEvent(event as BeforeInstallPromptEvent);
-    };
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    return () => window.removeEventListener("beforeinstallprompt", onPrompt);
   }, []);
 
   async function toggle(next: boolean) {
@@ -280,55 +273,23 @@ function Avisos() {
         </section>
       ) : null}
 
-      <Card hero beam spotlight={false} className="space-y-3 p-5">
-        <span aria-hidden className="card-glow">
-          <span className="absolute -top-16 -right-10 size-48 rounded-full bg-accent/20 blur-3xl" />
+      <Link
+        to="/instalar"
+        className="press card card-hover spotlight flex items-center gap-3 p-4"
+      >
+        <IconTile tone="accent" size={40}>
+          <Smartphone size={18} />
+        </IconTile>
+        <span className="min-w-0 flex-1">
+          <span className="block font-display text-lg leading-tight text-fg">
+            Instalar en cualquier aparato
+          </span>
+          <span className="block text-xs text-muted">
+            Código QR y botones para iPhone, Android, tablet o computadora.
+          </span>
         </span>
-        <div className="relative flex items-center gap-3">
-          <IconTile tone="accent" size={42}>
-            <Smartphone size={19} />
-          </IconTile>
-          <h2 className="font-display text-2xl text-fg">Instalar en el teléfono</h2>
-        </div>
-        <p className="relative text-sm text-muted">
-          No es una página suelta: se instala como aplicación. En iPhone abre el instructivo, pulsa
-          Compartir y elige Agregar a inicio. Instalada suena aunque no la tengas a la vista.
-        </p>
-        <div className="relative flex flex-col gap-2 sm:flex-row">
-          <a href="/?install=1&platform=ios" className="flex-1">
-            <Button className="w-full" size="lg">
-              Instalar en iPhone
-            </Button>
-          </a>
-          {installEvent ? (
-            <Button
-              tone="quiet"
-              size="lg"
-              className="flex-1"
-              onClick={() => {
-                void installEvent.prompt();
-                setInstallEvent(null);
-              }}
-            >
-              Instalar en Android
-            </Button>
-          ) : null}
-        </div>
-      </Card>
-
-      <div className="flex items-center justify-between gap-3 border-t border-line-soft pt-4">
-        <UserButton />
-        <Link
-          to="/privacidad"
-          className="press text-sm text-muted underline-offset-4 hover:text-accent hover:underline"
-        >
-          Privacidad
-        </Link>
-      </div>
+        <ArrowRight size={18} className="shrink-0 text-muted" aria-hidden />
+      </Link>
     </div>
   );
 }
-
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-};

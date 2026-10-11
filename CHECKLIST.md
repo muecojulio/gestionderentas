@@ -270,8 +270,48 @@ botones, y motion/primitives para la pulsación).
 ## Cómo verificar todo de un golpe
 
 ```sh
-npm test        # 49 pruebas: avisos, mora, aumentos, meses, feriados, resaltado
+npm test        # 217 pruebas: avisos, mora, aumentos, meses, feriados, resaltado…
 npm run typecheck
 npm run lint
 npm run dev     # app en http://localhost:8080
 ```
+
+---
+
+## Revisión de seguridad, limpieza y pestañas nuevas (esta revisión)
+
+- [x] **Seguridad revisada**: `npm audit` sin vulnerabilidades (dependencias y la
+      nueva `qrcode-generator`, que no tiene dependencias). Encabezados de
+      seguridad (CSP, `nosniff`, `referrer-policy`, `permissions-policy`,
+      aislamiento de agentes de navegación) ya estaban activos en dev y en
+      producción; se documentan ahora también en **Privacidad**.
+- [x] **Código muerto eliminado**: todo el inicio de sesión quedó desmontado hace
+      tiempo, pero quedaban ~15 archivos stub de `src/lib/auth/*` que ya no
+      importaba nadie (`isolation.server.ts`, `gate-identity.server.ts`,
+      `gate-session*.ts`, `verify.server.ts`, `popup.server.ts`,
+      `sign-in-gate.ts`, `providers.ts`, `email-password.ts`,
+      `pglite-dialect.ts`, `preview.ts`, `server.ts`, `client.ts`,
+      `use-current-user.ts`, `provider.tsx`, `gates.tsx`); el único archivo real
+      es `middleware.ts`. También se quitó `src/lib/env.server.ts` (sin uso), el
+      módulo completo de tipo de cambio USD/MXN (`exchange.ts`,
+      `exchange.functions.ts`, `exchange.test.ts`, `useExchangeRate`) que nunca
+      se mostraba en ninguna pantalla (Ingresos ya solo usa MXN), y varias
+      funciones/CSS huérfanas (`Sparkbars`, `toneColor`, `localClearAll`,
+      `localApartment`, `canStoreLocally`, `lastDbStatus`, `hasLocalStorage`,
+      `TIPOS`, `TIPO_PLURAL`, `.bar`/`.bar-fill`).
+- [x] **Política de privacidad actualizada** (`src/routes/privacidad.tsx`): ya no
+      menciona el tipo de cambio (se quitó esa consulta externa), explica que no
+      hay cuentas (un solo dueño por instalación: no compartas el enlace),
+      describe el nuevo código QR de instalación y resume los encabezados de
+      seguridad activos.
+- [x] **Pestaña Privacidad** ahora en la navegación principal (antes solo se
+      llegaba desde un enlace al fondo de Avisos).
+- [x] **Pestaña Instalar (nueva)**: `src/routes/instalar.tsx` +
+      `src/components/qr-code.tsx`. Código QR dibujado como SVG en el propio
+      dispositivo (sin servicio externo) con el enlace `/?install=1`, que ya
+      detectaba iPhone, Android, tablet o escritorio; además del código, trae
+      enlace para copiar y los botones de instalar que antes vivían en Avisos.
+- Prueba: barra lateral o navegación inferior → **Legal** e **Instalar**; en
+  Instalar, escanea el QR con otro teléfono y confirma que abre el instructivo.
+- Código: `src/routes/{privacidad,instalar}.tsx`, `src/components/qr-code.tsx`,
+  `src/components/shell.tsx` (NAV), `src/routes/avisos.tsx`.

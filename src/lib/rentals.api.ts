@@ -36,7 +36,6 @@ import {
   localSaveApartment,
   localSetReceipt,
   localVacateApartment,
-  hasLocalStorage,
   type ExportResult,
   type MonthResult,
   type SaveResult,
@@ -56,12 +55,6 @@ export type { IncomePoint };
 type Mode = "server" | "local";
 
 let healthPromise: Promise<DbStatus> | null = null;
-let lastHealth: DbStatus | null = null;
-
-/** Último estado conocido de la base del servidor (o `null` si no se ha sondeado). */
-export function lastDbStatus(): DbStatus | null {
-  return lastHealth;
-}
 
 /**
  * Estado de la base del servidor. Se sondea una sola vez por sesión y se
@@ -70,15 +63,10 @@ export function lastDbStatus(): DbStatus | null {
  * válida del servidor.
  */
 export function dbHealth(): Promise<DbStatus> {
-  healthPromise ??= server.getDataHealth()
-    .then((status) => {
-      lastHealth = status;
-      return status;
-    })
-    .catch((err) => {
-      healthPromise = null; // reintenta la próxima vez
-      throw err;
-    });
+  healthPromise ??= server.getDataHealth().catch((err) => {
+    healthPromise = null; // reintenta la próxima vez
+    throw err;
+  });
   return healthPromise;
 }
 
@@ -179,11 +167,6 @@ export async function addBlacklist(value: {
 
 export async function removeBlacklist(id: string): Promise<Result> {
   return (await mode()) === "local" ? localRemoveBlacklist(id) : server.removeBlacklist({ data: id });
-}
-
-/** ¿Puede este dispositivo guardar datos por su cuenta si el servidor no puede? */
-export function canStoreLocally(): boolean {
-  return hasLocalStorage();
 }
 
 type Result = { ok: true } | { ok: false; error: string };

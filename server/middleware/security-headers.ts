@@ -6,9 +6,9 @@
  * compartidos con el plugin de Vite que aplica los mismos encabezados en el
  * servidor de desarrollo. No se envía `X-Frame-Options` ni `frame-ancestors`
  * porque la app se incrusta a propósito en el host del live preview; tampoco
- * HSTS (se aplicaría al host proxy compartido del preview). La superficie de
- * sitios hermanos ya está cubierta con cookies `__Host-` + la verificación
- * Fetch-Metadata de `src/lib/auth/isolation.server.ts`.
+ * HSTS (se aplicaría al host proxy compartido del preview). No hay inicio de
+ * sesión ni cookies de sesión que proteger: la app es de un solo usuario
+ * local (ver `src/lib/auth/middleware.ts`).
  *
  * Se ejecuta después de `grok-pwa.ts` (orden alfabético) y envuelve cualquier
  * `Response` que la cadena devuelva, sin reemplazar encabezados que la app ya

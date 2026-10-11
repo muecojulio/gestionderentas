@@ -23,7 +23,7 @@
  */
 
 // Solo tipos: así este módulo corre también en las pruebas de Node, sin el
-// alias `@/` (igual que `exchange.ts` y `rentals.logic.ts`).
+// alias `@/` (igual que `rentals.logic.ts`).
 import type { Alert } from "@/lib/rentals.logic";
 
 /** Días de anticipación del aviso de renta (1 = "mañana toca la renta"). */

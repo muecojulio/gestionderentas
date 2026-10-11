@@ -18,7 +18,7 @@
     "preview:restart": "node scripts/preview.mjs restart",
     "preview:stop": "node scripts/preview.mjs stop",
     "typecheck": "tsc --noEmit",
-    "test": "node --test 'scripts/**/*.test.mjs' && node --experimental-strip-types --test src/lib/preview-path-prefix.test.ts src/lib/rentals.logic.test.ts src/lib/notifications.test.ts src/lib/exchange.test.ts src/lib/search-highlight.test.ts",
+    "test": "node --test 'scripts/**/*.test.mjs' && node --experimental-strip-types --test src/lib/preview-path-prefix.test.ts src/lib/rentals.logic.test.ts src/lib/notifications.test.ts src/lib/search-highlight.test.ts",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
@@ -61,6 +61,7 @@
     "lucide-react": "^0.510.0",
     "nitro": "3.0.260610-beta",
     "pg": "^8.16.3",
+    "qrcode-generator": "^2.0.4",
     "react": "^19.2.0",
     "react-day-picker": "^9.14.0",
     "react-dom": "^19.2.0",

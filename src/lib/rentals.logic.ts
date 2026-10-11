@@ -5,13 +5,6 @@ export const TIPO_LABEL: Record<PropertyTipo, string> = {
   accesoria: "Accesoria",
 };
 
-export const TIPO_PLURAL: Record<PropertyTipo, string> = {
-  departamento: "Departamentos",
-  accesoria: "Accesorias",
-};
-
-export const TIPOS: readonly PropertyTipo[] = ["departamento", "accesoria"] as const;
-
 export function tipoOf(value: unknown): PropertyTipo | null {
   return value === "departamento" || value === "accesoria" ? value : null;
 }

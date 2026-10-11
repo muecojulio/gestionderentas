@@ -55,7 +55,6 @@ after(async () => {
 
 describe("respaldo local", () => {
   it("está disponible y arranca vacío", () => {
-    assert.equal(store.hasLocalStorage(), true);
     const portfolio = store.localListPortfolio();
     assert.equal(portfolio.apartments.length, 0);
     assert.equal(portfolio.recibidoAnio, 0);

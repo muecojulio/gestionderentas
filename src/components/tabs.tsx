@@ -9,7 +9,14 @@ import {
   type ReactNode,
 } from "react";
 import { cn } from "@/lib/utils";
-import { isInteractiveTarget, resolveSwipeAxis, useReducedMotion, useScrollEdges } from "@/lib/motion";
+import {
+  isInteractiveTarget,
+  isSwipeCommitted,
+  prefersReducedMotion,
+  resolveSwipeAxis,
+  useReducedMotion,
+  useScrollEdges,
+} from "@/lib/motion";
 import { EdgeFades } from "@/components/hscroller";
 
 export type TabItem = { id: string; label: string; content: ReactNode; icon?: ReactNode };
@@ -42,6 +49,7 @@ export function Tabs({
     Math.min(Math.max(initial ?? 0, 0), Math.max(0, tabs.length - 1)),
   );
   const baseId = useId();
+  const keyboardHintId = useId();
   const listRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
@@ -49,16 +57,46 @@ export function Tabs({
   const edges = useScrollEdges(listRef);
   // Dirección del último cambio: la entrada del panel va en consecuencia.
   const [dir, setDir] = useState<1 | -1>(1);
+  const [outgoing, setOutgoing] = useState<number | null>(null);
+  const exitTimer = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (exitTimer.current != null) window.clearTimeout(exitTimer.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!reduced) return;
+    if (exitTimer.current != null) window.clearTimeout(exitTimer.current);
+    exitTimer.current = null;
+    setOutgoing(null);
+  }, [reduced]);
 
   const go = useCallback(
     (index: number) => {
-      setActive((current) => {
-        const next = ((index % tabs.length) + tabs.length) % tabs.length;
-        if (next !== current) setDir(next > current ? 1 : -1);
-        return next;
-      });
+      if (tabs.length === 0) return;
+      const next = ((index % tabs.length) + tabs.length) % tabs.length;
+      if (next === active) return;
+
+      const direction: 1 | -1 = index >= active ? 1 : -1;
+      setDir(direction);
+      setActive(next);
+      tabRefs.current[next]?.focus({ preventScroll: true });
+      if (exitTimer.current != null) window.clearTimeout(exitTimer.current);
+      if (reduced) {
+        setOutgoing(null);
+        exitTimer.current = null;
+      } else {
+        setOutgoing(active);
+        exitTimer.current = window.setTimeout(() => {
+          setOutgoing(null);
+          exitTimer.current = null;
+        }, 240);
+      }
     },
-    [tabs.length],
+    [active, reduced, tabs.length],
   );
 
   const measure = useCallback(() => {
@@ -68,7 +106,10 @@ export function Tabs({
     setIndicator({ left: tab.offsetLeft, width: tab.offsetWidth });
     // Mantiene visible la pestaña activa centrando el listado.
     const target = tab.offsetLeft - (list.clientWidth - tab.offsetWidth) / 2;
-    list.scrollTo({ left: Math.max(0, target), behavior: reduced ? "auto" : "smooth" });
+    list.scrollTo({
+      left: Math.max(0, target),
+      behavior: reduced || prefersReducedMotion() ? "auto" : "smooth",
+    });
   }, [active, reduced]);
 
   useEffect(() => {
@@ -106,7 +147,16 @@ export function Tabs({
   };
 
   // ── Swipe horizontal entre paneles (solo táctil) ────────────────────────
-  const swipe = useRef({ id: -1, startX: 0, startY: 0, dx: 0, axis: null as "x" | "y" | null });
+  const swipe = useRef({
+    id: -1,
+    startX: 0,
+    startY: 0,
+    dx: 0,
+    lastX: 0,
+    lastAt: 0,
+    velocity: 0,
+    axis: null as "x" | "y" | null,
+  });
   const [dragDx, setDragDx] = useState(0);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -117,6 +167,9 @@ export function Tabs({
       startX: event.clientX,
       startY: event.clientY,
       dx: 0,
+      lastX: event.clientX,
+      lastAt: event.timeStamp,
+      velocity: 0,
       axis: null,
     };
   };
@@ -139,12 +192,18 @@ export function Tabs({
       }
     }
     if (s.axis !== "x") return;
+    const elapsed = Math.max(1, event.timeStamp - s.lastAt);
+    s.velocity = (event.clientX - s.lastX) / elapsed;
+    s.lastX = event.clientX;
+    s.lastAt = event.timeStamp;
     s.dx = dx;
-    // Tope elástico en los extremos para no "estirar" la página.
+
+    // Resistencia leve en los extremos; también acompaña el gesto hacia atrás.
     const atStart = active === 0 && dx > 0;
     const atEnd = active === tabs.length - 1 && dx < 0;
     const raw = atStart || atEnd ? dx * 0.35 : dx;
-    setDragDx(Math.max(-event.currentTarget.clientWidth, Math.min(0, raw)));
+    const limit = event.currentTarget.clientWidth;
+    if (!reduced) setDragDx(Math.max(-limit, Math.min(limit, raw)));
   };
 
   const endSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -152,14 +211,22 @@ export function Tabs({
     if (s.id !== event.pointerId) return;
     swipe.current.id = -1;
     if (s.axis === "x") {
+      const delta = event.clientX - s.startX;
+      const velocity = event.timeStamp - s.lastAt <= 100 ? s.velocity : 0;
       const threshold = Math.max(60, event.currentTarget.clientWidth * 0.22);
-      if (s.dx <= -threshold) go(active + 1);
-      else if (s.dx >= threshold) go(active - 1);
+      if (isSwipeCommitted(delta, velocity, threshold)) {
+        if (delta < 0) go(active + 1);
+        else if (delta > 0) go(active - 1);
+      }
     }
     setDragDx(0);
   };
 
-  const dragging = dragDx !== 0;
+  const dragging = !reduced && dragDx !== 0;
+  if (tabs.length === 0) return null;
+
+  const tabId = (index: number) => `${baseId}-tab-${index}`;
+  const panelId = (index: number) => `${baseId}-panel-${index}`;
 
   return (
     <div className={cn("space-y-4", className)}>
@@ -168,6 +235,7 @@ export function Tabs({
           ref={listRef}
           role="tablist"
           aria-label={ariaLabel}
+          aria-describedby={keyboardHintId}
           aria-orientation="horizontal"
           onKeyDown={onKeyDown}
           className="scrollbar-none glass relative flex gap-1 overflow-x-auto rounded-2xl border border-line p-1 shadow-[inset_0_1px_0_rgb(255_255_255/0.05)]"
@@ -195,9 +263,9 @@ export function Tabs({
                 }}
                 type="button"
                 role="tab"
-                id={`${baseId}-tab-${tab.id}`}
+                id={tabId(index)}
                 aria-selected={selected}
-                aria-controls={`${baseId}-panel-${tab.id}`}
+                aria-controls={panelId(index)}
                 tabIndex={selected ? 0 : -1}
                 onClick={() => go(index)}
                 className={cn(
@@ -222,10 +290,15 @@ export function Tabs({
         </div>
         <EdgeFades edges={edges} fadeFrom="var(--color-bg)" className="rounded-2xl" />
         {edges.left || edges.right ? (
-          <p className="mt-1.5 text-center text-[11px] text-muted md:hidden">
-            Desliza para ver las demás secciones
+          <p aria-hidden className="mt-1.5 text-center text-[11px] text-muted md:hidden">
+            Desliza o usa las flechas del teclado para cambiar de sección
           </p>
         ) : null}
+        <span id={keyboardHintId} className="sr-only">
+          Usa las flechas izquierda y derecha para cambiar de pestaña; Inicio y Fin llevan a la
+          primera y a la última. También puedes recorrer la pestaña seleccionada y su contenido con
+          Tab.
+        </span>
       </div>
       <div
         className="touch-pan-y"
@@ -243,26 +316,43 @@ export function Tabs({
               transition: dragging ? "none" : reduced ? undefined : "opacity 200ms ease",
             }}
           >
-            {tabs.map((tab, index) => (
-              <div
-                key={tab.id}
-                role="tabpanel"
-                id={`${baseId}-panel-${tab.id}`}
-                aria-labelledby={`${baseId}-tab-${tab.id}`}
-                tabIndex={0}
-                className={cn(
-                  "col-start-1 row-start-1 focus-visible:outline-none",
-                  index === active
-                    ? cn(
-                        "duration-200 animate-in fade-in-0",
-                        dir === 1 ? "slide-in-from-right-3" : "slide-in-from-left-3",
-                      )
-                    : "hidden",
-                )}
-              >
-                {tab.content}
-              </div>
-            ))}
+            {tabs.map((tab, index) => {
+              const selected = index === active;
+              const exiting = index === outgoing && !selected;
+              return (
+                <div
+                  key={tab.id}
+                  role="tabpanel"
+                  id={panelId(index)}
+                  aria-labelledby={tabId(index)}
+                  aria-hidden={!selected}
+                  inert={!selected || undefined}
+                  tabIndex={selected ? 0 : -1}
+                  onAnimationEnd={(event) => {
+                    if (event.target !== event.currentTarget || !exiting) return;
+                    if (exitTimer.current != null) window.clearTimeout(exitTimer.current);
+                    exitTimer.current = null;
+                    setOutgoing((current) => (current === index ? null : current));
+                  }}
+                  className={cn(
+                    "col-start-1 row-start-1 focus-visible:outline-none",
+                    selected
+                      ? cn(
+                          "tab-panel-enter",
+                          dir === 1 ? "tab-panel-enter-next" : "tab-panel-enter-prev",
+                        )
+                      : exiting
+                        ? cn(
+                            "tab-panel-exit",
+                            dir === 1 ? "tab-panel-exit-prev" : "tab-panel-exit-next",
+                          )
+                        : "hidden",
+                  )}
+                >
+                  {tab.content}
+                </div>
+              );
+            })}
           </div>
           {/* Resplandor en el borde hacia el que arrastras: anticipa el cambio */}
           {dragging ? (

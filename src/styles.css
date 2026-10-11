@@ -486,6 +486,33 @@
     opacity: 1;
   }
 
+  /* Entrada y salida de paneles de pestañas: cortas y simétricas. */
+  .tab-panel-enter,
+  .tab-panel-exit {
+    position: relative;
+    animation-duration: 210ms;
+    animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    animation-fill-mode: both;
+  }
+  .tab-panel-enter {
+    z-index: 1;
+  }
+  .tab-panel-exit {
+    z-index: 2;
+  }
+  .tab-panel-enter-next {
+    animation-name: tab-enter-next;
+  }
+  .tab-panel-enter-prev {
+    animation-name: tab-enter-prev;
+  }
+  .tab-panel-exit-prev {
+    animation-name: tab-exit-prev;
+  }
+  .tab-panel-exit-next {
+    animation-name: tab-exit-next;
+  }
+
   /* ── Superficies ──────────────────────────────────────────────────────── */
 
   /* Tarjeta base: gradiente cálido, borde con luz arriba y sombra profunda. */
@@ -789,6 +816,50 @@
   }
 }
 
+@keyframes tab-enter-next {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes tab-enter-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes tab-exit-prev {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+
+@keyframes tab-exit-next {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+
 @keyframes shimmer {
   from {
     background-position: 200% 0;
@@ -853,8 +924,8 @@
   --rdp-accent-background-color: #2f2721;
   --rdp-day-height: 44px;
   --rdp-day-width: 44px;
-  --rdp-day_button-height: 42px;
-  --rdp-day_button-width: 42px;
+  --rdp-day_button-height: 44px;
+  --rdp-day_button-width: 44px;
   --rdp-today-color: var(--color-accent-soft);
   --rdp-selected-border: 2px solid var(--color-accent);
   --rdp-weekday-opacity: 0.72;
@@ -872,6 +943,8 @@
 }
 .agenda .rdp-button_next,
 .agenda .rdp-button_previous {
+  width: 44px;
+  height: 44px;
   color: var(--color-fg);
   border-radius: 999px;
   border: 1px solid var(--color-line);

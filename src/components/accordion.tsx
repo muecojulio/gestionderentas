@@ -28,13 +28,14 @@ export function Accordion({
   className?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const headingId = useId();
   const contentId = useId();
   return (
     <section
       className={cn("card spotlight overflow-hidden", className)}
       style={toneStyle(tone)}
     >
-      <h3 className="m-0">
+      <h3 id={headingId} className="m-0">
         <button
           type="button"
           aria-expanded={open}
@@ -67,7 +68,7 @@ export function Accordion({
       <div
         id={contentId}
         role="region"
-        aria-label={typeof title === "string" ? title : undefined}
+        aria-labelledby={headingId}
         inert={!open || undefined}
         className={cn(
           "grid transition-[grid-template-rows] duration-250 ease-out",

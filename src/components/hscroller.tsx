@@ -1,4 +1,13 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type UIEvent as ReactUIEvent,
+} from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { centerInScroller, useReducedMotion, useScrollEdges } from "@/lib/motion";
@@ -55,9 +64,26 @@ export function HScroller({
   /** Clave del elemento activo: se centra tras un cambio. */
   activeKey?: string;
 }) {
+  const hintId = useId();
   const ref = useRef<HTMLDivElement>(null);
   const edges = useScrollEdges(ref);
   const reduced = useReducedMotion();
+  const pointer = useRef<{
+    id: number;
+    startX: number;
+    startY: number;
+    startLeft: number;
+    moved: boolean;
+  } | null>(null);
+  const suppressClick = useRef(false);
+  const suppressionTimer = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (suppressionTimer.current != null) window.clearTimeout(suppressionTimer.current);
+    },
+    [],
+  );
 
   // Centra la opción seleccionada tras un cambio (suave salvo movimiento reducido).
   useEffect(() => {
@@ -67,20 +93,84 @@ export function HScroller({
     if (scroller && el) centerInScroller(scroller, el, reduced);
   }, [activeKey, reduced]);
 
+  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (suppressionTimer.current != null) window.clearTimeout(suppressionTimer.current);
+    suppressionTimer.current = null;
+    suppressClick.current = false;
+    pointer.current = {
+      id: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startLeft: event.currentTarget.scrollLeft,
+      moved: false,
+    };
+  };
+
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = pointer.current;
+    if (!gesture || gesture.id !== event.pointerId) return;
+    if (
+      Math.abs(event.clientX - gesture.startX) > 8 ||
+      Math.abs(event.clientY - gesture.startY) > 8
+    ) {
+      gesture.moved = true;
+    }
+  };
+
+  const onScroll = (event: ReactUIEvent<HTMLDivElement>) => {
+    const gesture = pointer.current;
+    if (gesture && Math.abs(event.currentTarget.scrollLeft - gesture.startLeft) > 6) {
+      gesture.moved = true;
+    }
+  };
+
+  const onPointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = pointer.current;
+    if (!gesture || gesture.id !== event.pointerId) return;
+    pointer.current = null;
+    if (!gesture.moved) return;
+    suppressClick.current = true;
+    suppressionTimer.current = window.setTimeout(() => {
+      suppressClick.current = false;
+      suppressionTimer.current = null;
+    }, 450);
+  };
+
+  const onClickCapture = (event: ReactMouseEvent<HTMLDivElement>) => {
+    // El navegador conserva el scroll nativo; solo descartamos el clic que
+    // algunos móviles emiten al soltar un carril después de arrastrarlo.
+    if (!suppressClick.current || event.detail === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    suppressClick.current = false;
+    if (suppressionTimer.current != null) window.clearTimeout(suppressionTimer.current);
+    suppressionTimer.current = null;
+  };
+
   return (
     <div className={cn("relative", className)}>
       <div
         ref={ref}
         role="group"
         aria-label={label}
-        className="scrollbar-none flex snap-x snap-proximity items-center gap-2 overflow-x-auto py-1"
+        aria-describedby={hintId}
+        data-no-swipe
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
+        onScroll={onScroll}
+        onClickCapture={onClickCapture}
+        className="scrollbar-none flex snap-x snap-proximity items-center gap-2 overflow-x-auto py-2"
       >
         {children}
       </div>
       <EdgeFades edges={edges} fadeFrom={fadeFrom} />
-      {edges.left || edges.right ? (
-        <span className="sr-only">Desliza para ver más opciones</span>
-      ) : null}
+      <span id={hintId} className="sr-only">
+        Usa Tab para recorrer las opciones y Enter o Espacio para activarlas. Cuando hay más opciones,
+        también puedes desplazar el carril horizontalmente.
+      </span>
     </div>
   );
 }

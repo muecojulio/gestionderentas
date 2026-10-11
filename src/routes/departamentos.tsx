@@ -196,12 +196,12 @@ function Departamentos() {
         detail={`${apartments.length} en total · ${tipoCounts.departamento} deptos · ${tipoCounts.accesoria} accesorias`}
         icon={<Building2 size={18} aria-hidden />}
         action={
-          <Link to="/nuevo">
-            <Button size="md">
+          <Button asChild size="md">
+            <Link to="/nuevo">
               <Plus size={16} aria-hidden />
               Nuevo
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         }
       />
 
@@ -256,9 +256,9 @@ function Departamentos() {
           body="Departamentos y accesorias comparten la misma ficha: foto, medidores y contrato. Elige el tipo al crear."
           icon={<Building2 size={28} strokeWidth={1.25} />}
           action={
-            <Link to="/nuevo">
-              <Button size="lg">Agregar propiedad</Button>
-            </Link>
+            <Button asChild size="lg">
+              <Link to="/nuevo">Agregar propiedad</Link>
+            </Button>
           }
         />
       ) : visible.length === 0 ? (
@@ -295,6 +295,7 @@ function Departamentos() {
                     <SwipeableRow
                       actions={rowActions(apt)}
                       actionsLabel={`Acciones de ${apt.nombre}`}
+                      swipeHandle
                     >
                       <Link
                         to="/depto/$id"

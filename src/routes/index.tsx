@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
@@ -51,6 +51,7 @@ function moneyShort(centavos: number): string {
 
 function Home() {
   const { portfolio, holidays } = useRentals();
+  const propertiesHintId = useId();
   const listRef = useRef<HTMLUListElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
   const edges = useScrollEdges(listRef);
@@ -272,9 +273,9 @@ function Home() {
           body="Agrega el primero con su foto, medidores y, si ya tiene inquilino, el contrato. Elige si es departamento o accesoria."
           icon={<Building2 size={28} strokeWidth={1.25} />}
           action={
-            <Link to="/nuevo">
-              <Button size="lg">Agregar propiedad</Button>
-            </Link>
+            <Button asChild size="lg">
+              <Link to="/nuevo">Agregar propiedad</Link>
+            </Button>
           }
         />
       ) : (
@@ -298,6 +299,8 @@ function Home() {
                 cuadrícula en pantallas grandes */}
             <ul
               ref={listRef}
+              aria-label="Tus propiedades"
+              aria-describedby={propertiesHintId}
               className="scrollbar-none -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:snap-none xl:grid-cols-3"
             >
               {apartments.map((apt, index) => {
@@ -410,10 +413,15 @@ function Home() {
                 );
               })}
             </ul>
+            <span id={propertiesHintId} className="sr-only">
+              Recorre las propiedades con Tab y activa cada enlace con Enter; no necesitas deslizar.
+            </span>
             <EdgeFades edges={edges} className="sm:hidden" />
-            <p className="mt-1 text-center text-[11px] text-muted sm:hidden" aria-hidden>
-              Desliza para ver las demás
-            </p>
+            {edges.left || edges.right ? (
+              <p className="mt-1 text-center text-[11px] text-muted sm:hidden" aria-hidden>
+                Desliza o usa Tab para ver las demás
+              </p>
+            ) : null}
           </div>
         </section>
       )}
@@ -503,9 +511,9 @@ function NotifPrompt({ occupied }: { occupied: number }) {
           {busy ? "Un momento…" : "Activar avisos"}
         </Button>
       ) : (
-        <Link to="/avisos" className="shrink-0">
-          <Button tone="quiet">Ver avisos</Button>
-        </Link>
+        <Button asChild tone="quiet" className="shrink-0">
+          <Link to="/avisos">Ver avisos</Link>
+        </Button>
       )}
     </Card>
   );

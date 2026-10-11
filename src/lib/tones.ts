@@ -53,6 +53,4 @@ export function toneStyle(tone: Tone, extra?: CSSProperties): CSSProperties {
   return { ...extra, "--tone": TONE_COLOR[tone], "--rail": TONE_COLOR[tone] } as CSSProperties;
 }
 
-export function toneColor(tone: Tone): string {
-  return TONE_COLOR[tone];
-}
+

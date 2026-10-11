@@ -14,6 +14,7 @@ import { Route as AvisosRouteImport } from './routes/avisos'
 import { Route as CalendarioRouteImport } from './routes/calendario'
 import { Route as DepartamentosRouteImport } from './routes/departamentos'
 import { Route as IngresosRouteImport } from './routes/ingresos'
+import { Route as InstalarRouteImport } from './routes/instalar'
 import { Route as ListaRouteImport } from './routes/lista'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NuevoRouteImport } from './routes/nuevo'
@@ -44,6 +45,11 @@ const DepartamentosRoute = DepartamentosRouteImport.update({
 const IngresosRoute = IngresosRouteImport.update({
   id: '/ingresos',
   path: '/ingresos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InstalarRoute = InstalarRouteImport.update({
+  id: '/instalar',
+  path: '/instalar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ListaRoute = ListaRouteImport.update({
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/calendario': typeof CalendarioRoute
   '/departamentos': typeof DepartamentosRoute
   '/ingresos': typeof IngresosRoute
+  '/instalar': typeof InstalarRoute
   '/lista': typeof ListaRoute
   '/login': typeof LoginRoute
   '/nuevo': typeof NuevoRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByTo {
   '/calendario': typeof CalendarioRoute
   '/departamentos': typeof DepartamentosRoute
   '/ingresos': typeof IngresosRoute
+  '/instalar': typeof InstalarRoute
   '/lista': typeof ListaRoute
   '/login': typeof LoginRoute
   '/nuevo': typeof NuevoRoute
@@ -110,6 +118,7 @@ export interface FileRoutesById {
   '/calendario': typeof CalendarioRoute
   '/departamentos': typeof DepartamentosRoute
   '/ingresos': typeof IngresosRoute
+  '/instalar': typeof InstalarRoute
   '/lista': typeof ListaRoute
   '/login': typeof LoginRoute
   '/nuevo': typeof NuevoRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/calendario'
     | '/departamentos'
     | '/ingresos'
+    | '/instalar'
     | '/lista'
     | '/login'
     | '/nuevo'
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/calendario'
     | '/departamentos'
     | '/ingresos'
+    | '/instalar'
     | '/lista'
     | '/login'
     | '/nuevo'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/calendario'
     | '/departamentos'
     | '/ingresos'
+    | '/instalar'
     | '/lista'
     | '/login'
     | '/nuevo'
@@ -165,6 +177,7 @@ export interface RootRouteChildren {
   CalendarioRoute: typeof CalendarioRoute
   DepartamentosRoute: typeof DepartamentosRoute
   IngresosRoute: typeof IngresosRoute
+  InstalarRoute: typeof InstalarRoute
   ListaRoute: typeof ListaRoute
   LoginRoute: typeof LoginRoute
   NuevoRoute: typeof NuevoRoute
@@ -208,6 +221,13 @@ declare module '@tanstack/react-router' {
       path: '/ingresos'
       fullPath: '/ingresos'
       preLoaderRoute: typeof IngresosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/instalar': {
+      id: '/instalar'
+      path: '/instalar'
+      fullPath: '/instalar'
+      preLoaderRoute: typeof InstalarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lista': {
@@ -261,6 +281,7 @@ const rootRouteChildren: RootRouteChildren = {
   CalendarioRoute: CalendarioRoute,
   DepartamentosRoute: DepartamentosRoute,
   IngresosRoute: IngresosRoute,
+  InstalarRoute: InstalarRoute,
   ListaRoute: ListaRoute,
   LoginRoute: LoginRoute,
   NuevoRoute: NuevoRoute,

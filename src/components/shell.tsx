@@ -7,10 +7,11 @@ import {
   HardDrive,
   LayoutDashboard,
   Plus,
+  QrCode,
   ShieldBan,
+  ShieldCheck,
   Wallet,
 } from "lucide-react";
-import { UserButton } from "@/lib/auth/gates";
 import { computeAlerts, longDate } from "@/lib/rentals.logic";
 import { useAlertNotifications } from "@/lib/use-alert-notifications";
 import { useDataHealth, useRentals } from "@/lib/use-rentals";
@@ -22,6 +23,8 @@ const NAV = [
   { to: "/ingresos", label: "Ingresos", icon: Wallet },
   { to: "/calendario", label: "Agenda", icon: CalendarDays },
   { to: "/lista", label: "Lista", icon: ShieldBan },
+  { to: "/privacidad", label: "Legal", icon: ShieldCheck },
+  { to: "/instalar", label: "Instalar", icon: QrCode },
 ] as const;
 
 function active(pathname: string, to: string) {
@@ -154,9 +157,6 @@ export function Frame({ children }: { children: ReactNode }) {
               ? `${alerts.length} ${alerts.length === 1 ? "aviso pendiente" : "avisos pendientes"}`
               : "Sin avisos pendientes"}
           </Link>
-        </div>
-        <div className="mt-4">
-          <UserButton />
         </div>
       </aside>
 

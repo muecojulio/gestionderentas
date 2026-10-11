@@ -1,15 +1,16 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import {
-  ArrowLeft,
   Camera,
   CalendarDays,
   Coins,
   Database,
+  KeyRound,
+  Lock,
+  QrCode,
   ShieldCheck,
   Trash2,
 } from "lucide-react";
 import { Card, IconTile, SectionTitle } from "@/components/surface";
-import { Button } from "@/components/ui";
 import type { Tone } from "@/lib/tones";
 
 export const Route = createFileRoute("/privacidad")({ component: Privacidad });
@@ -18,12 +19,18 @@ const SECCIONES: { icon: typeof Camera; tone: Tone; title: string; body: string 
   {
     icon: Database,
     tone: "accent",
-    title: "Tus datos son tuyos",
-    body: "Esta aplicación guarda departamentos, fotos, medidores, rentas, depósitos, incrementos, contratos y la lista de personas a las que no volverías a rentar. Esos datos pertenecen a tu cuenta y no se muestran a otros usuarios. El Excel se arma en tu teléfono y no se envía a ningún otro servicio.",
+    title: "Qué guarda la app",
+    body: "Esta aplicación guarda departamentos, fotos, medidores, rentas, depósitos, incrementos, contratos y la lista de personas a las que no volverías a rentar. Nada de eso se vende ni se comparte con redes de publicidad ni con terceros. El Excel se arma en tu teléfono o computadora y no se envía a ningún otro servicio.",
+  },
+  {
+    icon: KeyRound,
+    tone: "iris",
+    title: "Sin cuentas: un solo dueño",
+    body: "La app no pide iniciar sesión ni crear una cuenta: todo lo que ves aquí es de quien instaló o abrió esta copia. Por eso el enlace de tu app es, en los hechos, la llave de tus datos — no lo compartas ni lo publiques en ningún sitio donde pueda llegar gente ajena a tus rentas, porque cualquiera con el enlace vería y podría editar la misma información.",
   },
   {
     icon: Camera,
-    tone: "iris",
+    tone: "sage",
     title: "Fotos",
     body: "Las fotos se reducen en tu teléfono antes de guardarse. No se venden ni se envían a redes de publicidad.",
   },
@@ -35,21 +42,33 @@ const SECCIONES: { icon: typeof Camera; tone: Tone; title: string; body: string 
   },
   {
     icon: Coins,
-    tone: "sage",
+    tone: "azure",
     title: "Solo pesos mexicanos",
-    body: "Todas las rentas se cobran únicamente en pesos mexicanos (MXN). No se aceptan pagos en dólares ni en otra moneda. El tipo de cambio USD/MXN solo se consulta de forma opcional como referencia informativa en fuentes públicas sin llave ni registro (GitHub AllRates-Today/central-bank-exchange-rates con tasas oficiales de Banxico, licencia CC BY 4.0, y respaldo Frankfurter del BCE). Esas consultas solo piden la paridad USD/MXN, no envían datos tuyos y se guardan en caché 12 horas; los montos, la gráfica de ingresos y el resumen del mes se calculan siempre en MXN dentro de tu cuenta.",
+    body: "Todas las rentas se cobran, calculan y muestran únicamente en pesos mexicanos (MXN). No se aceptan pagos en dólares ni en otra moneda, y la app no consulta ningún tipo de cambio ni servicio externo para mostrar tus montos: la gráfica de ingresos y el resumen del mes salen siempre de lo que tú capturaste.",
+  },
+  {
+    icon: QrCode,
+    tone: "iris",
+    title: "Código QR de instalación",
+    body: "El código QR de la pestaña Instalar se dibuja en tu propio aparato con el enlace de esta app; no pasa por ningún generador de QR en línea ni por un tercero. Apunta siempre a la misma app que ya estás usando, así que compártelo solo con quien deba tener acceso a tus datos.",
   },
   {
     icon: ShieldCheck,
-    tone: "azure",
+    tone: "crimson",
     title: "Avisos y salida del inquilino",
     body: "Los avisos del teléfono se muestran en este dispositivo. Puedes apagarlos en Avisos. Al salir un inquilino se borra su información de la ficha actual; la foto y los números de medidor se conservan. El historial de estancias anteriores permanece para que sepas cuánto tiempo estuvo rentado.",
   },
   {
+    icon: Lock,
+    tone: "accent",
+    title: "Cómo se protege la conexión",
+    body: "Cada respuesta del servidor incluye encabezados de seguridad (política de contenido, protección contra clics invisibles entre sitios, bloqueo de rastreo de tipo MIME y apagado de cámara, micrófono y ubicación, que esta app no usa). Toda la información viaja cifrada (HTTPS) entre tu aparato y el servidor.",
+  },
+  {
     icon: Trash2,
-    tone: "crimson",
+    tone: "sage",
     title: "Borrar cuando quieras",
-    body: "Puedes eliminar un departamento completo, o quitar un nombre de la lista de no rentar, cuando quieras.",
+    body: "Puedes eliminar un departamento completo, o quitar un nombre de la lista de no rentar, cuando quieras. No hay papelera: borrar es definitivo.",
   },
 ];
 
@@ -59,7 +78,7 @@ function Privacidad() {
       <SectionTitle
         eyebrow="Gestión de rentas"
         title="Privacidad"
-        detail="Qué guarda la app, qué consulta fuera y qué puedes borrar."
+        detail="Qué guarda la app, qué consulta fuera, cómo se protege y qué puedes borrar."
         icon={<ShieldCheck size={18} aria-hidden />}
       />
       <div className="space-y-3">
@@ -78,12 +97,6 @@ function Privacidad() {
           );
         })}
       </div>
-      <Link to="/" className="block">
-        <Button tone="quiet" className="w-full">
-          <ArrowLeft size={16} aria-hidden />
-          Volver a la app
-        </Button>
-      </Link>
     </div>
   );
 }

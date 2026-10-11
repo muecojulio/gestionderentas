@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useReducedMotion } from "@/lib/motion";
 
@@ -118,52 +118,6 @@ export function ProgressRing({
       <span className="num absolute inset-0 grid place-items-center font-display text-lg text-fg">
         {Math.round(pct * 100)}%
       </span>
-    </div>
-  );
-}
-
-/**
- * Mini-gráfica de barras en CSS puro (resumen de los últimos meses). Es
- * decorativa cuando ya hay una gráfica completa en la pantalla: por eso va
- * marcada como imagen con su resumen en texto.
- */
-export function Sparkbars({
-  values,
-  labels,
-  summary,
-  tone = "accent",
-  className,
-}: {
-  values: number[];
-  labels: string[];
-  /** Texto alternativo: qué muestra la mini-gráfica. */
-  summary: string;
-  tone?: "accent" | "sage";
-  className?: string;
-}) {
-  const max = Math.max(1, ...values);
-  return (
-    <div
-      role="img"
-      aria-label={summary}
-      className={cn("flex h-14 items-end gap-1", className)}
-      style={
-        { "--tone": tone === "sage" ? "var(--color-sage)" : "var(--color-accent)" } as CSSProperties
-      }
-    >
-      {values.map((value, index) => (
-        <span key={labels[index] ?? index} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-          <span
-            className="bar bar-fill w-full rounded-t-[4px]"
-            style={
-              {
-                height: `${Math.max(6, Math.round((value / max) * 100))}%`,
-                "--i": index,
-              } as CSSProperties
-            }
-          />
-        </span>
-      ))}
     </div>
   );
 }

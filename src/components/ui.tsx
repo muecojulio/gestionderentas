@@ -1,12 +1,16 @@
 import {
+  cloneElement,
+  isValidElement,
   useId,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
   type TextareaHTMLAttributes,
 } from "react";
 import * as Switch from "@radix-ui/react-switch";
 import * as Dialog from "@radix-ui/react-dialog";
+import * as Slot from "@radix-ui/react-slot";
 import { AlertTriangle, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toneStyle, type Tone } from "@/lib/tones";
@@ -38,12 +42,13 @@ const STATUS_MESSAGE: Record<Exclude<ButtonStatus, "idle">, string> = {
 /**
  * Botón con microinteracciones coherentes:
  * - objetivos táctiles cómodos (44 px o más) y `touch-action: manipulation`;
- * - hundimiento al presionar (`.press`) y elevación sutil solo con ratón (`.lift`);
- * - brillo que cruza el botón principal al pasar el cursor (`.sheen`);
+ * - hundimiento al presionar (`.press`), elevación sutil con ratón (`.lift`) y brillo (`.sheen`);
+ * - foco visible y estado `disabled` distinguible;
  * - estados `loading` (spinner + `aria-busy`, evita envíos duplicados),
  *   `success` (palomita breve) y `error` (sacudida discreta + icono, sin
  *   depender solo del color), anunciados también con `role="status"`;
- * - foco visible y estado `disabled` distinguible.
+ * - `asChild` permite que una navegación conserve semántica de enlace y no
+ *   acabe con un `<button>` interactivo anidado dentro de un `<a>`.
  */
 export function Button({
   className,
@@ -51,45 +56,102 @@ export function Button({
   type = "button",
   status = "idle",
   size = "md",
+  asChild = false,
+  children,
+  disabled: userDisabled,
+  onClick,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   tone?: ButtonTone;
   /** Estado visual del botón. `loading` también lo deshabilita. */
   status?: ButtonStatus;
   size?: keyof typeof SIZES;
+  /** Renderiza el estilo sobre el hijo (p. ej. un Link), conservando su semántica. */
+  asChild?: boolean;
 }) {
   const loading = status === "loading";
-  const disabled = props.disabled || loading;
+  const disabled = userDisabled || loading;
+  const buttonClass = cn(
+    "press lift relative inline-flex items-center justify-center gap-2 rounded-xl font-medium",
+    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-soft",
+    "disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none",
+    "aria-disabled:cursor-not-allowed aria-disabled:pointer-events-none aria-disabled:opacity-45 aria-disabled:shadow-none",
+    SIZES[size],
+    TONES[tone],
+    status === "error" && "shake",
+    className,
+  );
+  const statusIcon = loading ? (
+    <Loader2 size={16} aria-hidden className="shrink-0 animate-spin" />
+  ) : status === "success" ? (
+    <Check size={16} aria-hidden className="shrink-0 animate-in zoom-in-50 duration-200" />
+  ) : status === "error" ? (
+    <AlertTriangle size={16} aria-hidden className="shrink-0" />
+  ) : null;
+  const errorLabel =
+    status === "error" ? (
+      <span className="relative z-2 text-xs font-semibold">Error</span>
+    ) : null;
+  const contents = (
+    <>
+      {statusIcon}
+      <span className="relative z-2 min-w-0">{children}</span>
+      {errorLabel}
+    </>
+  );
+  const slottedChild = isValidElement<{ children?: ReactNode }>(children)
+    ? cloneElement(
+        children,
+        undefined,
+        <span className="relative z-2 min-w-0">{children.props.children}</span>,
+      )
+    : children;
+  const announcement = (
+    <span role="status" className="sr-only">
+      {status === "idle" ? "" : STATUS_MESSAGE[status]}
+    </span>
+  );
+
+  if (asChild) {
+    return (
+      <>
+        <Slot.Root
+          {...props}
+          aria-busy={loading || props["aria-busy"] || undefined}
+          aria-disabled={disabled || props["aria-disabled"] || undefined}
+          tabIndex={disabled ? -1 : props.tabIndex}
+          onClick={(event) => {
+            if (disabled) {
+              event.preventDefault();
+              event.stopPropagation();
+              return;
+            }
+            onClick?.(event as ReactMouseEvent<HTMLButtonElement>);
+          }}
+          className={buttonClass}
+        >
+          {statusIcon}
+          <Slot.Slottable>{slottedChild}</Slot.Slottable>
+          {errorLabel}
+        </Slot.Root>
+        {announcement}
+      </>
+    );
+  }
+
   return (
     <>
       <button
-        type={type}
-        aria-busy={loading || undefined}
         {...props}
+        type={type}
+        aria-busy={loading || props["aria-busy"] || undefined}
+        onClick={onClick}
         disabled={disabled}
-        className={cn(
-          "press lift relative inline-flex items-center justify-center gap-2 rounded-xl font-medium",
-          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-soft",
-          "disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none",
-          SIZES[size],
-          TONES[tone],
-          status === "error" && "shake",
-          className,
-        )}
+        className={buttonClass}
       >
-        {loading ? (
-          <Loader2 size={16} aria-hidden className="shrink-0 animate-spin" />
-        ) : status === "success" ? (
-          <Check size={16} aria-hidden className="shrink-0 animate-in zoom-in-50 duration-200" />
-        ) : status === "error" ? (
-          <AlertTriangle size={16} aria-hidden className="shrink-0" />
-        ) : null}
-        <span className="relative z-2 min-w-0">{props.children}</span>
+        {contents}
       </button>
-      {/* El estado también se anuncia, no solo se ve. */}
-      <span role="status" className="sr-only">
-        {status === "idle" ? "" : STATUS_MESSAGE[status]}
-      </span>
+      {announcement}
     </>
   );
 }
@@ -123,6 +185,11 @@ export function IconButton({
   );
 }
 
+type FieldControlProps = {
+  id?: string;
+  "aria-describedby"?: string;
+};
+
 export function Field({
   label,
   hint,
@@ -134,23 +201,36 @@ export function Field({
   children: ReactNode;
   tone?: Tone;
 }) {
+  const id = useId();
+  const child = isValidElement<FieldControlProps>(children) ? children : null;
+  const controlId = child?.props.id ?? id;
+  const hintId = hint ? `${id}-hint` : undefined;
+  const describedBy = [child?.props["aria-describedby"], hintId].filter(Boolean).join(" ");
+  const control = child
+    ? cloneElement(child, {
+        id: controlId,
+        "aria-describedby": describedBy || undefined,
+      })
+    : children;
+
   return (
-    <label className="block">
-      <span className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-fg/85">
+    <div className="block">
+      <label
+        htmlFor={controlId}
+        className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-fg/85"
+      >
         {label}
-      </span>
-      {children}
+      </label>
+      {control}
       {hint ? (
         <span
-          className={cn(
-            "mt-1.5 block text-xs",
-            tone === "crimson" ? "text-crimson" : tone ? "text-muted" : "text-muted",
-          )}
+          id={hintId}
+          className={cn("mt-1.5 block text-xs", tone === "crimson" ? "text-crimson" : "text-muted")}
         >
           {hint}
         </span>
       ) : null}
-    </label>
+    </div>
   );
 }
 
@@ -185,6 +265,7 @@ export function Toggle({
   icon?: ReactNode;
 }) {
   const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
   return (
     <div
       className={cn(
@@ -198,7 +279,11 @@ export function Toggle({
           {icon}
           {label}
         </span>
-        {hint ? <span className="mt-0.5 block text-xs text-muted">{hint}</span> : null}
+        {hint ? (
+          <span id={hintId} className="mt-0.5 block text-xs text-muted">
+            {hint}
+          </span>
+        ) : null}
       </label>
       {/* El área táctil del interruptor mide 48 px de alto aunque se vea más chico. */}
       <span className="-m-2 grid shrink-0 place-items-center p-2">
@@ -208,6 +293,7 @@ export function Toggle({
           onCheckedChange={onCheckedChange}
           disabled={disabled}
           aria-label={label}
+          aria-describedby={hintId}
           className={cn(
             "press relative h-8 w-14 rounded-full border transition-colors duration-200",
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-soft",

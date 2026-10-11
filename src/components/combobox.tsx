@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
 } from "react";
 import { Check, ChevronDown, Search, SearchX } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,19 +22,16 @@ export type ComboboxOption = {
 };
 
 /**
- * Combobox con búsqueda: filtra mientras se escribe (insensible a mayúsculas,
- * minúsculas y diacríticos) y resalta el trozo coincidente. Semántica completa
- * (combobox + listbox + option, aria-expanded/activedescendant/selected),
- * navegación con flechas ↑ ↓, Inicio/Fin, Enter para confirmar y Escape para
- * cerrar; la opción activa se mantiene visible, se anuncia cuántas
- * coincidencias hay, el mensaje cuando no hay ninguna es explícito, se cierra
- * al hacer clic fuera y conserva el foco.
+ * Combobox con búsqueda, navegación completa por teclado y disclosure táctil.
+ * La opción activa (`aria-activedescendant`) se distingue de la seleccionada
+ * (`aria-selected`); el foco permanece en el campo mientras se navega.
  */
 export function Combobox({
   label,
   placeholder = "Buscar…",
   options,
   onSelect,
+  selectedValue,
   noResults = "Sin resultados",
   className,
 }: {
@@ -41,6 +39,8 @@ export function Combobox({
   placeholder?: string;
   options: ComboboxOption[];
   onSelect: (value: string) => void;
+  /** Valor seleccionado, si el combobox representa una selección persistente. */
+  selectedValue?: string | null;
   noResults?: string;
   className?: string;
 }) {
@@ -63,7 +63,7 @@ export function Combobox({
     );
   }, [options, query]);
 
-  // Cierra al hacer clic fuera; el foco vuelve al campo de forma predecible.
+  // Cierra al hacer clic fuera sin robar el foco del elemento pulsado.
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
@@ -76,12 +76,27 @@ export function Combobox({
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [open]);
 
-  // Mantiene visible la opción activa al navegar con el teclado.
+  // Mantiene la opción activa dentro del listbox sin desplazar la página.
   useEffect(() => {
-    if (activeIndex < 0) return;
-    const el = listRef.current?.querySelectorAll<HTMLElement>("[role='option']")[activeIndex];
-    el?.scrollIntoView({ block: "nearest" });
-  }, [activeIndex]);
+    if (!open || activeIndex < 0) return;
+    const list = listRef.current;
+    const option = list?.querySelectorAll<HTMLElement>("[role='option']")[activeIndex];
+    if (!list || !option) return;
+
+    const listRect = list.getBoundingClientRect();
+    const optionRect = option.getBoundingClientRect();
+    if (optionRect.top < listRect.top) {
+      list.scrollTop -= listRect.top - optionRect.top;
+    } else if (optionRect.bottom > listRect.bottom) {
+      list.scrollTop += optionRect.bottom - listRect.bottom;
+    }
+  }, [activeIndex, open]);
+
+  // Si las opciones cambian mientras el menú está abierto, no deja una opción
+  // activa que ya no exista.
+  useEffect(() => {
+    if (activeIndex >= filtered.length) setActiveIndex(-1);
+  }, [activeIndex, filtered.length]);
 
   const select = (value: string) => {
     setOpen(false);
@@ -99,21 +114,35 @@ export function Combobox({
         setActiveIndex(filtered.length ? 0 : -1);
         return;
       }
-      if (filtered.length) setActiveIndex((i) => (i + 1) % filtered.length);
+      if (filtered.length) setActiveIndex((index) => (index + 1) % filtered.length);
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
-      if (filtered.length) setActiveIndex((i) => (i - 1 + filtered.length) % filtered.length);
+      if (!open) {
+        setOpen(true);
+        setActiveIndex(filtered.length ? filtered.length - 1 : -1);
+        return;
+      }
+      if (filtered.length) {
+        setActiveIndex((index) => (index <= 0 ? filtered.length - 1 : index - 1));
+      }
     } else if (event.key === "Home") {
       event.preventDefault();
+      setOpen(true);
       if (filtered.length) setActiveIndex(0);
     } else if (event.key === "End") {
       event.preventDefault();
+      setOpen(true);
       if (filtered.length) setActiveIndex(filtered.length - 1);
     } else if (event.key === "Enter") {
       event.preventDefault();
+      if (!open) {
+        setOpen(true);
+        return;
+      }
       const option = filtered[activeIndex >= 0 ? activeIndex : 0];
       if (option) select(option.value);
     } else if (event.key === "Escape") {
+      if (!open) return;
       event.preventDefault();
       setOpen(false);
       setActiveIndex(-1);
@@ -121,6 +150,13 @@ export function Combobox({
       setOpen(false);
       setActiveIndex(-1);
     }
+  };
+
+  const toggleOpen = () => {
+    const next = !open;
+    setOpen(next);
+    setActiveIndex(next && filtered.length ? 0 : -1);
+    if (next) inputRef.current?.focus();
   };
 
   return (
@@ -138,9 +174,12 @@ export function Combobox({
           role="combobox"
           aria-expanded={open}
           aria-controls={listId}
-          aria-activedescendant={activeIndex >= 0 ? `${listId}-opt-${activeIndex}` : undefined}
+          aria-activedescendant={
+            open && activeIndex >= 0 ? `${listId}-opt-${activeIndex}` : undefined
+          }
           aria-autocomplete="list"
           aria-label={label}
+          autoComplete="off"
           value={query}
           placeholder={placeholder}
           onChange={(event) => {
@@ -151,18 +190,30 @@ export function Combobox({
           onFocus={() => setOpen(true)}
           onClick={() => setOpen(true)}
           onKeyDown={onKeyDown}
-          className="control h-12 pr-11 pl-12 text-base"
+          className="control h-12 pr-12 pl-12 text-base"
         />
-        <ChevronDown
-          size={18}
-          aria-hidden
+        <button
+          type="button"
+          aria-label={open ? "Cerrar opciones" : "Abrir opciones"}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={listId}
+          onMouseDown={(event: ReactMouseEvent<HTMLButtonElement>) => event.preventDefault()}
+          onClick={toggleOpen}
           className={cn(
-            "pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-muted transition-transform duration-200",
-            open && "rotate-180 text-accent",
+            "press absolute top-0 right-0 grid size-11 place-items-center rounded-xl text-muted",
+            "focus-visible:z-1 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-soft",
+            "hover:text-fg",
           )}
-        />
+        >
+          <ChevronDown
+            size={18}
+            aria-hidden
+            className={cn("transition-transform duration-200", open && "rotate-180 text-accent")}
+          />
+        </button>
       </div>
-      {/* Cuántas opciones quedan: se anuncia sin robar el foco. */}
+      {/* Resultados comunicados sin mover el foco del campo. */}
       <p role="status" className="sr-only">
         {open
           ? filtered.length === 1
@@ -180,31 +231,32 @@ export function Combobox({
             className="scrollbar-none max-h-64 overflow-y-auto overscroll-contain"
           >
             {filtered.length === 0 ? (
-              <li className="flex items-center gap-2.5 px-3 py-3 text-sm text-muted">
+              <li className="flex min-h-11 items-center gap-2.5 px-3 py-3 text-sm text-muted">
                 <SearchX size={16} aria-hidden className="shrink-0" />
                 {noResults}
               </li>
             ) : (
               filtered.map((option, index) => {
                 const isActive = index === activeIndex;
+                const isSelected = option.value === selectedValue;
                 const hit = highlightMatch(option.label, query);
                 return (
                   <li
                     key={option.value}
                     id={`${listId}-opt-${index}`}
                     role="option"
-                    aria-selected={isActive}
+                    aria-selected={isSelected}
                     onMouseEnter={() => setActiveIndex(index)}
                     onMouseDown={(event) => {
-                      event.preventDefault(); // conserva el foco en el campo
-                      select(option.value);
+                      if (event.button === 0) event.preventDefault(); // conserva el foco en el campo
                     }}
+                    onClick={() => select(option.value)}
                     className={cn(
                       "relative flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150",
                       isActive ? "bg-accent/16 text-fg" : "text-fg/90",
                     )}
                   >
-                    {/* Marca de opción activa: no depende solo del color */}
+                    {/* La opción activa y la seleccionada tienen señales distintas. */}
                     <span
                       aria-hidden
                       className={cn(
@@ -235,7 +287,7 @@ export function Combobox({
                       aria-hidden
                       className={cn(
                         "shrink-0 text-accent transition-opacity duration-150",
-                        isActive ? "opacity-100" : "opacity-0",
+                        isSelected ? "opacity-100" : "opacity-0",
                       )}
                     />
                   </li>
@@ -249,7 +301,7 @@ export function Combobox({
               className="hidden items-center gap-3 border-t border-line-soft px-3 py-2 text-[11px] text-muted sm:flex"
             >
               <span>↑ ↓ moverte</span>
-              <span>Enter abrir</span>
+              <span>Enter elegir</span>
               <span>Esc cerrar</span>
             </p>
           ) : null}

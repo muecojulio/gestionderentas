@@ -92,12 +92,12 @@ function Detail() {
         </IconTile>
         <p className="font-display text-2xl text-fg">No encontramos esa propiedad</p>
         <p className="text-sm text-muted">Puede que se haya borrado o que el enlace sea antiguo.</p>
-        <Link to="/departamentos" className="block">
-          <Button tone="quiet" className="w-full">
+        <Button asChild tone="quiet" className="w-full">
+          <Link to="/departamentos">
             <ArrowLeft size={16} aria-hidden />
             Volver a la cartera
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </Card>
     );
   }
